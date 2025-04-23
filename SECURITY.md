@@ -19,7 +19,7 @@ We take the security of YouTube Shorts Automation seriously. If you believe you'
 ### For Security Vulnerabilities
 
 1. **Do Not** disclose the vulnerability publicly on GitHub Issues or Discussions
-2. **Email**: Send details of the vulnerability to [your-email@example.com](mailto:your-email@example.com)
+2. **Email**: Send details of the vulnerability to [mr.shahidali.sa@gmail.com](mailto:mr.shahidali.sa@gmail.com)
 3. **Include**:
    - A description of the vulnerability
    - Steps to reproduce
