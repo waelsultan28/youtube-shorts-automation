@@ -1,5 +1,8 @@
 # YouTube Shorts Automation Suite with Self-Improvement
 
+[![GitHub Release](https://img.shields.io/github/v/release/Mrshahidali420/youtube-shorts-automation)](https://github.com/Mrshahidali420/youtube-shorts-automation/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 This suite of scripts automates the entire YouTube Shorts workflow - from finding videos to tracking performance. It includes advanced self-improvement features that use AI to analyze performance, optimize metadata, and suggest improvements.
 
 ## Components
@@ -176,7 +179,7 @@ The system uses an Excel file (`shorts_data.xlsx`) with two sheets:
 
 ### Option 1: Standard Installation
 
-1. Clone this repository
+1. Download the [latest release](https://github.com/Mrshahidali420/youtube-shorts-automation/releases/latest) or clone this repository
 2. Install required packages: `pip install -r requirements.txt`
 3. Configure `config.txt` with your settings
 4. Create a `niche.txt` file with your target niche (e.g., "GTA 6")
@@ -263,6 +266,25 @@ yt-upload   # Run uploader
 - `shorts_downloads/`: Where downloaded videos are stored (created by setup script)
 - `shorts_metadata/`: Where metadata files are stored (created by setup script)
 - `youtube_shorts/data/`: Contains template files for configuration
+
+## Releases
+
+### Latest Release: [v1.0.0](https://github.com/Mrshahidali420/youtube-shorts-automation/releases/tag/v1.0.0)
+
+The latest stable release of the YouTube Shorts Automation Suite is v1.0.0. You can:
+
+- **Download**: Get the [ZIP file](https://github.com/Mrshahidali420/youtube-shorts-automation/archive/refs/tags/v1.0.0.zip) directly
+- **Clone**: Use Git to clone a specific version: `git clone -b v1.0.0 https://github.com/Mrshahidali420/youtube-shorts-automation.git`
+- **Install**: Install with pip: `pip install git+https://github.com/Mrshahidali420/youtube-shorts-automation.git@v1.0.0`
+
+### Release Notes
+
+See the [releases page](https://github.com/Mrshahidali420/youtube-shorts-automation/releases) for detailed release notes, which include:
+
+- New features and improvements
+- Bug fixes
+- Breaking changes (if any)
+- Installation instructions
 
 ## License
 
