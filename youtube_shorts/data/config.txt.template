@@ -1,37 +1,59 @@
 # YouTube Shorts Automation Configuration
 
-# API Keys
+# API Keys (Required for both downloader and uploader)
 API_KEY=your_gemini_api_key_here
-GEMINI_API_KEY=your_gemini_api_key_here
+GEMINI_API_KEY=your_gemini_api_key_here  # Same as API_KEY, used for AI features
 
-# Download Settings
-MAX_DOWNLOADS=10
-MAX_KEYWORDS=200
-YT_SEARCH_RESULTS_PER_KEYWORD=50
-VIDEOS_TO_DOWNLOAD_PER_KEYWORD=5
-KEYWORDS_TO_PROCESS_PER_RUN=5
-MIN_KEYWORDS_THRESHOLD=20
-NEW_KEYWORDS_TO_GENERATE=10
-TOP_KEYWORDS_TO_USE=5
-METADATA_TIMEOUT_SECONDS=15
+# Download and Upload Limits
+MAX_DOWNLOADS=6        # Maximum number of videos to download per run
+MAX_UPLOADS=12         # Maximum number of videos to upload per run
+MAX_KEYWORDS=200       # Maximum number of keywords to store
+
+# Advanced Downloader Settings
+YT_SEARCH_RESULTS_PER_KEYWORD=50  # Number of search results to fetch per keyword
+VIDEOS_TO_DOWNLOAD_PER_KEYWORD=5  # Max videos to download for a single keyword
+KEYWORDS_TO_PROCESS_PER_RUN=5     # Number of keywords to select for each run
+MIN_KEYWORDS_THRESHOLD=20         # Minimum number of keywords before generating new ones
+NEW_KEYWORDS_TO_GENERATE=10       # Number of new keywords to generate when needed
+TOP_KEYWORDS_TO_USE=5             # Number of top-performing keywords to use for new keyword generation
+METADATA_TIMEOUT_SECONDS=15       # Timeout for Gemini API call
 
 # Upload Settings
-MAX_UPLOADS=5
-UPLOAD_CATEGORY=Gaming
-SCHEDULING_MODE=default_interval
-SCHEDULE_INTERVAL_MINUTES=120
-MIN_SCHEDULE_AHEAD_MINUTES=20
-CUSTOM_SCHEDULE_TIMES=9:00 AM, 3:00 PM, 9:00 PM
+UPLOAD_CATEGORY=Gaming  # YouTube category for uploads
 
-# Browser Settings
+# --- Scheduling Settings ---
+
+# Mode for scheduling uploads. Options:
+#   default_interval = Publish first video now, schedule subsequent videos at fixed interval.
+#   custom_tomorrow  = Try custom schedule times from config (for tomorrow onwards), then use fixed interval fallback. NO immediate publish.
+SCHEDULING_MODE=custom_tomorrow
+
+# Fixed interval (in minutes) used for scheduling in 'default_interval' mode
+# AND as the fallback interval in 'custom_tomorrow' mode when custom slots are exhausted/invalid.
+SCHEDULE_INTERVAL_MINUTES=240
+
+# List of preferred schedule times (HH:MM AM/PM format, comma-separated) for 'custom_tomorrow' mode.
+# The script will try to use these times sequentially for videos in a run, always targeting TOMORROW's date or later.
+CUSTOM_SCHEDULE_TIMES=6:00 AM, 9:00 AM, 11:30 AM, 3:00 PM, 6:00 PM, 10:00 PM
+
+# Minimum number of minutes ahead of the current time a video can be scheduled.
+# Prevents scheduling too close to the current time, which YouTube might reject.
+MIN_SCHEDULE_AHEAD_MINUTES=20
+
+# Browser Profile
+# Path to Firefox profile directory. Create a dedicated profile for YouTube uploads.
+# Example: C:\Users\YourUsername\AppData\Roaming\Mozilla\Firefox\Profiles\yourprofile.default
 PROFILE_PATH=
 
-# Debug Settings
-ENABLE_DEBUG_RECORDING=False
-FFMPEG_PATH=ffmpeg
-
-# YouTube Limits
-YOUTUBE_DESCRIPTION_LIMIT=4900
+# YouTube Limits (Character/Count Limits for Uploads)
+YOUTUBE_DESCRIPTION_LIMIT=4950
 YOUTUBE_TAG_LIMIT=100
 YOUTUBE_TOTAL_TAGS_LIMIT=450
 YOUTUBE_MAX_TAGS_COUNT=40
+
+# Debug Recording Settings
+# Enable screen recording for debugging (True/False). Requires FFmpeg installed.
+ENABLE_DEBUG_RECORDING=False
+# Optional: Specify full path to ffmpeg executable if not found automatically in system PATH
+# Example: C:\path\to\ffmpeg.exe
+FFMPEG_PATH=ffmpeg

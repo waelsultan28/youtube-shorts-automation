@@ -70,38 +70,75 @@ The suite includes AI-powered self-improvement capabilities in both the download
 
 ## Configuration
 
-Edit the `config.txt` file to customize the suite's behavior:
+Edit the `config.txt` file to customize the suite's behavior. Here's a detailed explanation of all available options:
 
 ```
-# API Key (Required for both downloader and uploader)
+# API Keys (Required for both downloader and uploader)
 API_KEY=your_gemini_api_key_here
+GEMINI_API_KEY=your_gemini_api_key_here  # Same as API_KEY, used for AI features
 
-# Downloader Settings
-MAX_DOWNLOADS=10
-MAX_KEYWORDS=200
+# Download and Upload Limits
+MAX_DOWNLOADS=6        # Maximum number of videos to download per run
+MAX_UPLOADS=12         # Maximum number of videos to upload per run
+MAX_KEYWORDS=200       # Maximum number of keywords to store
 
-# Uploader Settings
-MAX_UPLOADS=12
-UPLOAD_CATEGORY=Gaming
+# Upload Settings
+UPLOAD_CATEGORY=Gaming  # YouTube category for uploads
 
-# Scheduling Settings
+# --- Scheduling Settings ---
+
+# Mode for scheduling uploads. Options:
+#   default_interval = Publish first video now, schedule subsequent videos at fixed interval.
+#   custom_tomorrow  = Try custom schedule times from config (for tomorrow onwards), then use fixed interval fallback. NO immediate publish.
 SCHEDULING_MODE=custom_tomorrow
+
+# Fixed interval (in minutes) used for scheduling in 'default_interval' mode
+# AND as the fallback interval in 'custom_tomorrow' mode when custom slots are exhausted/invalid.
 SCHEDULE_INTERVAL_MINUTES=240
+
+# List of preferred schedule times (HH:MM AM/PM format, comma-separated) for 'custom_tomorrow' mode.
+# The script will try to use these times sequentially for videos in a run, always targeting TOMORROW's date or later.
 CUSTOM_SCHEDULE_TIMES=6:00 AM, 9:00 AM, 11:30 AM, 3:00 PM, 6:00 PM, 10:00 PM
 
-# Browser Profile
-PROFILE_PATH=path/to/firefox/profile
+# Minimum number of minutes ahead of the current time a video can be scheduled.
+# Prevents scheduling too close to the current time, which YouTube might reject.
+MIN_SCHEDULE_AHEAD_MINUTES=20
 
-# YouTube Limits
+# Browser Profile
+PROFILE_PATH=C:\Users\YourUsername\AppData\Roaming\Mozilla\Firefox\Profiles\yourprofile.default
+
+# YouTube Limits (Character/Count Limits for Uploads)
 YOUTUBE_DESCRIPTION_LIMIT=4950
 YOUTUBE_TAG_LIMIT=100
 YOUTUBE_TOTAL_TAGS_LIMIT=450
 YOUTUBE_MAX_TAGS_COUNT=40
 
 # Debug Recording Settings
+# Enable screen recording for debugging (True/False). Requires FFmpeg installed.
 ENABLE_DEBUG_RECORDING=False
-FFMPEG_PATH=path/to/ffmpeg.exe
+# Optional: Specify full path to ffmpeg executable if not found automatically in system PATH
+FFMPEG_PATH=C:\path\to\ffmpeg.exe
 ```
+
+### Important Configuration Options
+
+#### Scheduling Modes
+
+- **default_interval**: Publishes the first video immediately and schedules subsequent videos at fixed intervals defined by `SCHEDULE_INTERVAL_MINUTES`.
+- **custom_tomorrow**: Uses the times specified in `CUSTOM_SCHEDULE_TIMES` starting from tomorrow, then falls back to fixed intervals if needed. No videos are published immediately.
+
+#### Firefox Profile
+
+Using a dedicated Firefox profile is recommended for the uploader. This allows you to:
+- Stay logged into YouTube
+- Avoid login captchas
+- Maintain session cookies
+
+To create a new Firefox profile:
+1. Open Firefox and type `about:profiles` in the address bar
+2. Click "Create a New Profile" and follow the instructions
+3. Copy the profile path from the "Root Directory" field
+4. Paste it into the `PROFILE_PATH` setting in `config.txt`
 
 ## Excel File Structure
 
