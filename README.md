@@ -149,11 +149,12 @@ The system uses an Excel file (`shorts_data.xlsx`) with two sheets:
 
 1. Clone this repository
 2. Install the package in development mode: `pip install -e .`
-3. Configure `config.txt` with your settings
-4. Create a `niche.txt` file with your target niche (e.g., "GTA 6")
-5. Use the command-line tools:
+3. Set up your workspace: `yt-setup` or `python -m youtube_shorts.setup_workspace`
+4. Configure `config.txt` with your settings
+5. Edit `niche.txt` with your target niche (e.g., "GTA 6")
+6. Use the command-line tools:
    ```
-   yt-track   # Run performance tracker
+   yt-track    # Run performance tracker
    yt-download # Run downloader
    yt-upload   # Run uploader
    ```
@@ -211,21 +212,20 @@ yt-upload   # Run uploader
   - `downloader.py`: Video downloading module
   - `uploader.py`: Video uploading module
 
-### Configuration
+### Configuration and Data Files
 - `setup.py`: Package setup script
 - `requirements.txt`: Required dependencies
-- `config.txt`: Configuration settings
-- `niche.txt`: Target niche for content
-- `shorts_data.xlsx`: Excel file tracking downloaded and uploaded videos
-- `seo_metadata_prompt.txt`: Cache for the potentially improved SEO prompt
-- `metadata_metrics.json`: Tracks metadata generation metrics
-- `performance_metrics.json`: Tracks overall performance metrics
-- `tuning_suggestions.log`: Stores parameter tuning suggestions
+- `config.txt`: Configuration settings (created by setup script)
+- `niche.txt`: Target niche for content (created by setup script)
+- `shorts_data.xlsx`: Excel file tracking downloaded and uploaded videos (created by setup script)
+- `seo_metadata_prompt.txt`: Cache for the potentially improved SEO prompt (created during runtime)
+- `metadata_metrics.json`: Tracks metadata generation metrics (created by setup script)
+- `performance_metrics.json`: Tracks overall performance metrics (created by setup script)
 
-## Folders
-
-- `shorts_downloads`: Downloaded video files
-- `shorts_metadata`: Metadata JSON files for each video
+### Directories
+- `shorts_downloads/`: Where downloaded videos are stored (created by setup script)
+- `shorts_metadata/`: Where metadata files are stored (created by setup script)
+- `youtube_shorts/data/`: Contains template files for configuration
 
 ## License
 
