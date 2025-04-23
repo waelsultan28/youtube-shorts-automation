@@ -1378,8 +1378,26 @@ def load_config():
 def run_downloader(config):
     """Main function to run the downloader with the given configuration."""
     print_info("Starting YouTube Shorts Downloader...")
-    print_info("This is a simplified version for the command-line tool.")
-    print_info("For full functionality, use: python -m youtube_shorts.downloader")
+
+    # Get script directory
+    script_directory = os.path.dirname(os.path.abspath(__file__))
+
+    # --- Path Definitions ---
+    NICHE_FILENAME_PATH = os.path.join(os.path.dirname(script_directory), NICHE_FILENAME)
+    DOWNLOADS_FOLDER = os.path.join(os.path.dirname(script_directory), DOWNLOADS_FOLDER_NAME)
+    METADATA_FOLDER = os.path.join(os.path.dirname(script_directory), METADATA_FOLDER_NAME)
+    FFMPEG_PATH = os.path.join(os.path.dirname(script_directory), FFMPEG_EXE) # Default location
+    EXCEL_FILE_PATH = os.path.join(os.path.dirname(script_directory), EXCEL_FILENAME)
+    PLAYLIST_CACHE_FILE_PATH = os.path.join(os.path.dirname(script_directory), PLAYLIST_CACHE_FILENAME)
+    KEYWORDS_CACHE_FILE_PATH = os.path.join(os.path.dirname(script_directory), KEYWORDS_CACHE_FILENAME)
+    METADATA_CACHE_FILE_PATH = os.path.join(os.path.dirname(script_directory), "metadata_cache.json") # Currently unused but path defined
+    SEO_METADATA_PROMPT_CACHE_PATH = os.path.join(os.path.dirname(script_directory), SEO_METADATA_PROMPT_CACHE) # Path for cached SEO prompt
+
+    print(f"{Fore.CYAN}--- Initializing Downloader (SEO Focus + Self-Improvement) ---{Style.RESET_ALL}")
+
+    # --- Create Folders ---
+    os.makedirs(DOWNLOADS_FOLDER, exist_ok=True)
+    os.makedirs(METADATA_FOLDER, exist_ok=True)
 
     # Get API Key (Mandatory)
     API_KEY = config.get("API_KEY") or config.get("GEMINI_API_KEY") # Allow either key name
@@ -1394,7 +1412,150 @@ def run_downloader(config):
         print_error(f"Failed to configure Gemini API: {e}")
         return 1
 
-    print_success("Downloader completed successfully.")
+    # Get FFMPEG Path from config if specified
+    ffmpeg_path_config = config.get("FFMPEG_PATH")
+    if ffmpeg_path_config and os.path.exists(ffmpeg_path_config):
+        FFMPEG_PATH = ffmpeg_path_config
+        print_info(f"Using FFmpeg path from config: {FFMPEG_PATH}")
+    elif not os.path.exists(FFMPEG_PATH):
+         # If default path doesn't exist and config path wasn't valid/provided, warn user
+         print_warning(f"FFmpeg not found at default path '{FFMPEG_PATH}' or specified config path. Downloads requiring merging might fail.")
+         print_warning("Ensure ffmpeg.exe is in the script directory or set FFMPEG_PATH in config.txt")
+         FFMPEG_PATH = "ffmpeg" # Fallback to hoping it's in system PATH
+
+    # Get MAX_KEYWORDS (Optional with Default)
+    _DEFAULT_MAX_KEYWORDS = 200
+    try: max_keywords = int(config.get("MAX_KEYWORDS", _DEFAULT_MAX_KEYWORDS))
+    except (ValueError, TypeError): max_keywords = _DEFAULT_MAX_KEYWORDS; print_warning(f"Invalid MAX_KEYWORDS. Using default: {_DEFAULT_MAX_KEYWORDS}")
+    if max_keywords <= 0: max_keywords = _DEFAULT_MAX_KEYWORDS; print_warning(f"MAX_KEYWORDS must be positive. Using default: {_DEFAULT_MAX_KEYWORDS}")
+
+    # Get MAX_DOWNLOADS (Mandatory)
+    try: max_downloads = int(config["MAX_DOWNLOADS"])
+    except KeyError: print_error("MAX_DOWNLOADS setting is missing from 'config.txt'."); return 1
+    except (ValueError, TypeError): print_error(f"Invalid MAX_DOWNLOADS value in 'config.txt'. Must be an integer."); return 1
+    if max_downloads <= 0: print_error("MAX_DOWNLOADS must be a positive integer in 'config.txt'."); return 1
+
+    print(f"{Fore.BLUE}{Style.BRIGHT}Settings: Max Downloads={max_downloads}, Max Keywords={max_keywords}{Style.RESET_ALL}")
+
+    # --- Load or Create Excel Workbook ---
+    excel_loaded_ok = False
+    try:
+        if not os.path.exists(EXCEL_FILE_PATH):
+            wb = Workbook()
+            downloaded_sheet = wb.active; downloaded_sheet.title = DOWNLOADED_SHEET_NAME
+            downloaded_sheet.append(["Video Index", "Optimized Title", "Downloaded Date", "Views", "Uploader", "Original Title"]) # Corrected header
+            uploaded_sheet = wb.create_sheet(title=UPLOADED_SHEET_NAME)
+            uploaded_sheet.append(["Video Index", "Optimized Title", "YouTube Video ID", "Upload Timestamp", "Scheduled Time", "Publish Status"]) # Corrected header
+            wb.save(EXCEL_FILE_PATH)
+            print_success(f"Created new Excel file: {EXCEL_FILENAME}")
+            excel_loaded_ok = True
+        else:
+            wb = load_workbook(EXCEL_FILE_PATH)
+            # Ensure sheets exist and headers are correct
+            if DOWNLOADED_SHEET_NAME not in wb.sheetnames: downloaded_sheet = wb.create_sheet(title=DOWNLOADED_SHEET_NAME); downloaded_sheet.append(["Video Index", "Optimized Title", "Downloaded Date", "Views", "Uploader", "Original Title"]); print_warning("Created missing 'Downloaded' sheet.")
+            else: downloaded_sheet = wb[DOWNLOADED_SHEET_NAME] # Check/fix header if needed
+            if UPLOADED_SHEET_NAME not in wb.sheetnames: uploaded_sheet = wb.create_sheet(title=UPLOADED_SHEET_NAME); uploaded_sheet.append(["Video Index", "Optimized Title", "YouTube Video ID", "Upload Timestamp", "Scheduled Time", "Publish Status"]); print_warning("Created missing 'Uploaded' sheet.")
+            else: uploaded_sheet = wb[UPLOADED_SHEET_NAME] # Check/fix header if needed
+            print_success(f"Loaded Excel file: {EXCEL_FILENAME}")
+            excel_loaded_ok = True
+    except Exception as e:
+        print_error(f"Error handling Excel file {EXCEL_FILE_PATH}: {e}")
+        return 1
+    if not excel_loaded_ok: return 1 # Should be caught by error, but safety check
+
+    # --- Load Caches ---
+    print(f"{Fore.BLUE}--- Loading Caches ---{Style.RESET_ALL}")
+    # Playlist Cache (Downloaded Video IDs)
+    playlist_cache = set()
+    if os.path.exists(PLAYLIST_CACHE_FILE_PATH):
+        try:
+            with open(PLAYLIST_CACHE_FILE_PATH, "r", encoding="utf-8") as f: content = f.read()
+            if content:
+                loaded_data = json.loads(content)
+                if isinstance(loaded_data, list): playlist_cache = set(loaded_data); print_success(f"Loaded {len(playlist_cache)} IDs from playlist cache.")
+                else: print_warning(f"Playlist cache '{PLAYLIST_CACHE_FILENAME}' has invalid format. Initializing empty.")
+            else: print_warning(f"Playlist cache '{PLAYLIST_CACHE_FILENAME}' is empty. Initializing empty.")
+        except json.JSONDecodeError: print_warning(f"Playlist cache '{PLAYLIST_CACHE_FILENAME}' contains invalid JSON. Initializing empty.")
+        except Exception as e: print_warning(f"Error loading playlist cache '{PLAYLIST_CACHE_FILENAME}': {e}. Initializing empty.")
+    else: print_info(f"Playlist cache not found. Will create if needed.")
+    downloaded_video_ids = playlist_cache
+
+    # Generated Keywords Cache (with Frequency/Score)
+    keyword_frequency = {}
+    if os.path.exists(KEYWORDS_CACHE_FILE_PATH):
+        try:
+            with open(KEYWORDS_CACHE_FILE_PATH, "r", encoding="utf-8") as f: content = f.read()
+            if content:
+                cached_data = json.loads(content)
+                if isinstance(cached_data, dict): keyword_frequency = cached_data; print_success(f"Loaded {len(keyword_frequency)} keywords from cache (Score format).")
+                # Remove handling for old list format, assume dict format now
+                else: print_warning(f"Keyword cache '{KEYWORDS_CACHE_FILENAME}' has invalid format (expected dict). Initializing empty.")
+            else: print_warning(f"Keyword cache '{KEYWORDS_CACHE_FILENAME}' is empty. Initializing empty.")
+        except json.JSONDecodeError: print_warning(f"Keyword cache '{KEYWORDS_CACHE_FILENAME}' contains invalid JSON. Initializing empty.")
+        except Exception as e: print_warning(f"Error loading keyword cache '{KEYWORDS_CACHE_FILENAME}': {e}. Initializing empty.")
+    else: print_info(f"Keyword cache not found. Will generate keywords if needed.")
+    search_keywords = list(keyword_frequency.keys()) # Get keywords from the loaded dict
+
+    # --- Keyword Filtering ---
+    print_info("Applying keyword filters...")
+    if search_keywords:
+        initial_count = len(search_keywords)
+        required_substrings = ["GTA", "Grand Theft Auto"]; required_substrings_lower = [sub.lower() for sub in required_substrings]
+        social_media_lower = {"twitch", "youtube", "facebook", "instagram", "tiktok", "x", "reddit", "discord", "kick"}
+        generic_terms_lower = {"gaming", "video game", "gameplay", "shorts", "short", "viral", "trending", "funny", "meme", "edit", "clip", "clips"}
+        filtered_keywords_temp = []; removed_keywords = []; temp_freq = {}
+        for keyword in search_keywords:
+            kw_lower = keyword.lower()
+            contains_required = any(sub in kw_lower for sub in required_substrings_lower)
+            is_not_social = kw_lower not in social_media_lower
+            is_not_generic = kw_lower not in generic_terms_lower
+            is_long_enough = len(keyword.replace(" ", "")) > 3
+            if contains_required and is_not_social and is_not_generic and is_long_enough:
+                filtered_keywords_temp.append(keyword)
+                temp_freq[keyword] = keyword_frequency.get(keyword, 0) # Keep score
+            else: removed_keywords.append(keyword)
+        search_keywords = filtered_keywords_temp; keyword_frequency = temp_freq
+        if removed_keywords: print_warning(f"Filtered keywords: Removed {len(removed_keywords)}. Kept {len(search_keywords)}.")
+        else: print_success("Keyword filtering completed. No keywords removed.")
+    else: print_info("No keywords loaded from cache to filter.")
+
+    # --- Get Seed Niche ---
+    try:
+        with open(NICHE_FILENAME_PATH, "r", encoding="utf-8") as f: seed_niche = f.readline().strip()
+        if not seed_niche:
+            print_error(f"The niche file '{NICHE_FILENAME_PATH}' is empty.")
+            return 1
+        print_success(f"Main niche: '{seed_niche}'")
+    except FileNotFoundError:
+        print_error(f"Niche file '{NICHE_FILENAME_PATH}' not found.")
+        return 1
+    except Exception as e:
+        print_error(f"Error reading niche from '{NICHE_FILENAME_PATH}': {e}")
+        return 1
+
+    # --- Generate Initial Keywords if Cache is Empty ---
+    if not search_keywords:
+        print_warning("No cached keywords found/loaded. Generating initial keywords...")
+        initial_keywords = generate_keywords_from_niche(seed_niche, num_keywords=INITIAL_KEYWORDS_COUNT)
+        if initial_keywords:
+            new_unique = [kw for kw in initial_keywords if kw not in keyword_frequency]
+            search_keywords.extend(new_unique)
+            for kw in new_unique: keyword_frequency[kw] = 0 # Start score at 0
+            print_success(f"Generated and added {len(new_unique)} initial keywords.")
+            save_cache(keyword_frequency, KEYWORDS_CACHE_FILE_PATH); print_success("Saved initial keywords to cache.")
+        else:
+            print_error("Failed to generate initial keywords. Check Gemini API/prompt. Cannot proceed without keywords.")
+            return 1
+
+    # --- Initialize Counters and State ---
+    video_counter = get_last_video_index(EXCEL_FILE_PATH, DOWNLOADED_SHEET_NAME) # Use Downloaded sheet index
+    total_downloaded = 0
+    processed_keywords_this_run = set()
+
+    print_info(f"Starting video counter at: video{video_counter}")
+    print_info(f"Total keywords available for searching: {len(search_keywords)}")
+
+    print_success("Downloader initialized successfully.")
     return 0
 
 
@@ -1412,8 +1573,26 @@ def main():
         else:
             print(f"{Fore.YELLOW}Running as module{Style.RESET_ALL}")
 
+        # Parse command-line arguments
+        import argparse
+        parser = argparse.ArgumentParser(description="YouTube Shorts Downloader")
+        parser.add_argument("--max-downloads", type=int, help="Maximum number of videos to download")
+        parser.add_argument("--niche", type=str, help="Override niche from niche.txt")
+        parser.add_argument("--debug", action="store_true", help="Enable debug mode")
+        args = parser.parse_args()
+
         # Execute the main script logic
         config = load_config()
+
+        # Override config with command-line arguments if provided
+        if args.max_downloads:
+            config["MAX_DOWNLOADS"] = str(args.max_downloads)
+            print_info(f"Overriding MAX_DOWNLOADS with command-line value: {args.max_downloads}")
+
+        if args.debug:
+            config["DEBUG"] = "True"
+            print_info("Debug mode enabled from command line")
+
         return run_downloader(config)
 
     except Exception as e:

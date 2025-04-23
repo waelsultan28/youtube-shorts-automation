@@ -351,8 +351,67 @@ def run_tracker():
         print_error("Could not authenticate with YouTube Data API. Exiting.")
         return 1
 
-    print_info("This is a simplified version for the command-line tool.")
-    print_info("For full functionality, use: python -m youtube_shorts.performance_tracker")
+    # Get videos to track
+    print_info("Getting videos to track...")
+    excel_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', EXCEL_FILE_PATH)
+
+    print_info(f"Loading Excel file: {excel_path}")
+    videos_to_fetch = []
+    try:
+        wb = load_workbook(excel_path, read_only=True, data_only=True)
+        if UPLOADED_SHEET_NAME not in wb.sheetnames:
+            print_error(f"Sheet '{UPLOADED_SHEET_NAME}' not found in '{excel_path}'. Exiting.")
+            wb.close()
+            return 1
+
+        sheet = wb[UPLOADED_SHEET_NAME]
+        header = [cell.value for cell in sheet[1]]
+
+        # Find YouTube Video ID column
+        id_col_idx = None
+        for i, col_name in enumerate(header, 1):
+            if col_name and "youtube video id" in str(col_name).lower():
+                id_col_idx = i
+                break
+
+        if id_col_idx is None:
+            print_error("'YouTube Video ID' column not found in header. Cannot fetch stats.")
+            wb.close()
+            return 1
+
+        # Find Views column to check if update needed
+        views_col_idx = None
+        for i, col_name in enumerate(header, 1):
+            if col_name and "views (yt)" in str(col_name).lower():
+                views_col_idx = i
+                break
+
+        print_info("Scanning for videos needing stats update...")
+        for row_idx in range(2, sheet.max_row + 1):
+            video_id_cell = sheet.cell(row=row_idx, column=id_col_idx)
+            youtube_id = str(video_id_cell.value).strip() if video_id_cell.value else None
+
+            # Check if YouTube ID is present AND not "N/A"
+            if youtube_id and youtube_id != "N/A" and youtube_id != "SIMULATED-ID":
+                # Simple check: is the Views column empty for this row?
+                if views_col_idx is None or sheet.cell(row=row_idx, column=views_col_idx).value is None:
+                    videos_to_fetch.append(youtube_id)
+                    print_info(f"Adding video ID to fetch: {youtube_id}")
+
+        wb.close()  # Close read_only workbook
+
+    except FileNotFoundError:
+        print_error(f"Excel file not found at: {excel_path}. Exiting.")
+        return 1
+    except Exception as e:
+        print_error(f"Error reading Excel file for IDs: {e}", include_traceback=True)
+        return 1
+
+    if not videos_to_fetch:
+        print_info("No videos found needing stat updates.")
+        return 0
+
+    print_info(f"Found {len(videos_to_fetch)} videos to fetch stats for.")
     print_success("Performance tracker initialized successfully.")
     return 0
 
@@ -365,6 +424,24 @@ def main():
             print(f"{Fore.YELLOW}Running as script{Style.RESET_ALL}")
         else:
             print(f"{Fore.YELLOW}Running as module{Style.RESET_ALL}")
+
+        # Parse command-line arguments
+        import argparse
+        parser = argparse.ArgumentParser(description="YouTube Performance Tracker")
+        parser.add_argument("--force-refresh", action="store_true", help="Force refresh of all video statistics")
+        parser.add_argument("--export", action="store_true", help="Export statistics to CSV file")
+        parser.add_argument("--debug", action="store_true", help="Enable debug mode")
+        args = parser.parse_args()
+
+        # TODO: Handle command-line arguments
+        if args.force_refresh:
+            print_info("Force refresh option enabled - will update all video statistics")
+
+        if args.export:
+            print_info("Export option enabled - will export statistics to CSV file")
+
+        if args.debug:
+            print_info("Debug mode enabled")
 
         # Execute the main script logic
         return run_tracker()
