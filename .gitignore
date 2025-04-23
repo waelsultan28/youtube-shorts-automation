@@ -1,0 +1,41 @@
+# Config and sensitive files
+config.txt
+*.key
+
+# Downloaded videos and metadata
+shorts_downloads/
+shorts_metadata/
+
+# Cache files
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Excel files with data
+*.xlsx
+
+# Log files
+*.log
+
+# Archive files
+*.rar
+*.zip
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# Virtual environments
+venv/
+env/
+.env/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
