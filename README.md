@@ -286,6 +286,18 @@ See the [releases page](https://github.com/Mrshahidali420/youtube-shorts-automat
 - Breaking changes (if any)
 - Installation instructions
 
+## Open Source
+
+This project is open source and welcomes contributions from the community. We believe in the power of collaboration and are excited to see how others might extend and improve this tool.
+
+### How to Contribute
+
+We welcome contributions of all kinds - from bug reports to feature requests to code contributions. Please see our [CONTRIBUTING.md](CONTRIBUTING.md) file for detailed guidelines on how to contribute.
+
+### Code of Conduct
+
+We are committed to providing a welcoming and inclusive experience for everyone. Please read our [Code of Conduct](CODE_OF_CONDUCT.md) before participating in our community.
+
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details. The MIT License is a permissive license that allows you to use, modify, and distribute this software for both private and commercial purposes.
