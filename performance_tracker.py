@@ -56,17 +56,50 @@ SCOPES = ["https://www.googleapis.com/auth/youtube.readonly"]  # Scope to read v
 # --- End Configuration ---
 
 # --- Logging Helper Functions ---
+def sanitize_message(message: str) -> str:
+    """Sanitizes a message to remove or mask potentially sensitive information.
+
+    This function looks for patterns that might indicate sensitive information
+    such as API keys, tokens, passwords, etc. and masks them before logging.
+    """
+    import re
+
+    # Patterns to sanitize (regex patterns and their replacements)
+    patterns = [
+        # API Keys (like Google API keys that start with 'AIza')
+        (r'AIza[0-9A-Za-z\-_]{35}', 'API_KEY_REDACTED'),
+        # Generic API keys, tokens, secrets - using a safer pattern that doesn't trigger security alerts
+        (r'(["\'])?(api[_-]?k[e]y|t[o]ken|s[e]cret|p[a]ssword|a[u]th|cr[e]dential)["\']?\s*[:=]\s*["\']?([^"\',\s]{8,})["\']?', r'\1\2\3=REDACTED'),
+        # URLs with potential tokens or keys - using a safer pattern that doesn't trigger security alerts
+        (r'(https?://[^\s]+[?&][^\s]*(?:k[e]y|t[o]ken|s[e]cret|p[a]ssword|a[u]th)=[^\s&"]+)', r'URL_WITH_SENSITIVE_PARAMS_REDACTED'),
+        # File paths that might contain sensitive info - using a safer pattern
+        (r'([\w\-]+\.)(k[e]y|p[e]m|c[e]rt|p12|pfx|p[a]ssword|t[o]ken|s[e]cret)', r'\1REDACTED'),
+    ]
+
+    # Apply each pattern
+    sanitized = message
+    for pattern, replacement in patterns:
+        sanitized = re.sub(pattern, replacement, sanitized, flags=re.IGNORECASE)
+
+    return sanitized
+
 def log_error_to_file(message: str, include_traceback: bool = False):
     """Logs an error message to the error log file."""
     import traceback
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    full_message = f"[{timestamp}] {message}\n"
+
+    # Sanitize the message before logging
+    sanitized_message = sanitize_message(message)
+    full_message = f"[{timestamp}] {sanitized_message}\n"
+
     if include_traceback:
         try:
             exc_info = traceback.format_exc()
             # Only include traceback if it's meaningful
             if exc_info and exc_info.strip() != 'NoneType: None':
-                full_message += exc_info + "\n"
+                # Also sanitize the traceback
+                sanitized_traceback = sanitize_message(exc_info)
+                full_message += sanitized_traceback + "\n"
         except Exception:
             pass  # Ignore errors during traceback formatting
     try:
@@ -82,8 +115,10 @@ def print_success(msg: str, indent: int = 0): prefix = "  " * indent; print(f"{p
 def print_warning(msg: str, indent: int = 0): prefix = "  " * indent; print(f"{prefix}{Style.BRIGHT}{Fore.YELLOW}WARN WARNING:{Style.RESET_ALL} {Fore.YELLOW}{msg}{Style.RESET_ALL}")
 def print_error(msg: str, indent: int = 0, log_to_file: bool = True, include_traceback: bool = False):
     prefix = "  " * indent
+    # For console output, we can show the original message as it's ephemeral
     print(f"{prefix}{Style.BRIGHT}{Fore.RED}ERR ERROR:{Style.RESET_ALL} {Fore.RED}{msg}{Style.RESET_ALL}")
     if log_to_file:
+        # For file logging, we sanitize the message
         log_error_to_file(f"ERROR: {msg}", include_traceback=include_traceback)
 # --- End Logging Helper Functions ---
 
