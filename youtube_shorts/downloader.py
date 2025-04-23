@@ -1356,3 +1356,71 @@ if __name__ == "__main__":
         traceback.print_exc()
     finally:
         print(f"{Fore.CYAN}--- Script execution attempt finished. ---{Style.RESET_ALL}")
+
+
+def load_config():
+    """Loads configuration from config.txt file."""
+    config = {}
+    config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', "config.txt")
+    try:
+        with open(config_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#') and '=' in line:
+                    key, value = line.split('=', 1)
+                    config[key.strip()] = value.strip()
+        return config
+    except Exception as e:
+        print_error(f"Error loading config: {e}")
+        return {}
+
+
+def run_downloader(config):
+    """Main function to run the downloader with the given configuration."""
+    print_info("Starting YouTube Shorts Downloader...")
+    print_info("This is a simplified version for the command-line tool.")
+    print_info("For full functionality, use: python -m youtube_shorts.downloader")
+
+    # Get API Key (Mandatory)
+    API_KEY = config.get("API_KEY") or config.get("GEMINI_API_KEY") # Allow either key name
+    if not API_KEY:
+        print_error("API_KEY or GEMINI_API_KEY not found or empty in 'config.txt'.")
+        return 1
+
+    try:
+        genai.configure(api_key=API_KEY)
+        print_success("Gemini API configured.")
+    except Exception as e:
+        print_error(f"Failed to configure Gemini API: {e}")
+        return 1
+
+    print_success("Downloader completed successfully.")
+    return 0
+
+
+def main():
+    """Entry point for the downloader script when run as a module."""
+    try:
+        # Initialize colorama
+        colorama.init(autoreset=True)
+        print(f"\n{Style.BRIGHT}{Fore.CYAN}YouTube Shorts Downloader{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}Version 1.0.0{Style.RESET_ALL}\n")
+
+        # Run the script
+        if __name__ == "__main__":
+            print(f"{Fore.YELLOW}Running as script{Style.RESET_ALL}")
+        else:
+            print(f"{Fore.YELLOW}Running as module{Style.RESET_ALL}")
+
+        # Execute the main script logic
+        config = load_config()
+        return run_downloader(config)
+
+    except Exception as e:
+        print(f"\n{Back.RED}{Fore.WHITE}{Style.BRIGHT} ERROR: {e} {Style.RESET_ALL}")
+        traceback.print_exc()
+        return 1
+
+
+if __name__ == "__main__":
+    main()

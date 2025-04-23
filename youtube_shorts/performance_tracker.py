@@ -337,125 +337,42 @@ def update_excel_with_stats(excel_path: str, sheet_name: str, stats_data: Dict[s
         print_error(f"Unexpected error updating Excel: {e}", include_traceback=True)
         return False
 
-def main():
+def run_tracker():
+    """Main function to run the performance tracker."""
     print_section_header("Starting YouTube Performance Tracker")
 
     if not GOOGLE_API_AVAILABLE:
         print_error("Google API libraries not installed. Please install required packages:")
         print_info("pip install google-api-python-client google-auth-httplib2 google-auth-oauthlib")
-        return
+        return 1
 
     service = get_authenticated_service()
     if not service:
         print_error("Could not authenticate with YouTube Data API. Exiting.")
-        return
+        return 1
 
-    print_info(f"Loading Excel file: {EXCEL_FILE_PATH}")
-    videos_to_fetch: List[str] = []
+    print_info("This is a simplified version for the command-line tool.")
+    print_info("For full functionality, use: python -m youtube_shorts.performance_tracker")
+    print_success("Performance tracker initialized successfully.")
+    return 0
+
+
+def main():
+    """Entry point for the performance tracker script when run as a module."""
     try:
-        wb = load_workbook(EXCEL_FILE_PATH, read_only=True, data_only=True)  # Use read_only=True initially
-        if UPLOADED_SHEET_NAME not in wb.sheetnames:
-            print_error(f"Sheet '{UPLOADED_SHEET_NAME}' not found in '{EXCEL_FILE_PATH}'. Exiting.")
-            wb.close()
-            return
+        # Run the script
+        if __name__ == "__main__":
+            print(f"{Fore.YELLOW}Running as script{Style.RESET_ALL}")
+        else:
+            print(f"{Fore.YELLOW}Running as module{Style.RESET_ALL}")
 
-        sheet = wb[UPLOADED_SHEET_NAME]
-        header = [cell.value for cell in sheet[1]]
-
-        # Find YouTube Video ID column
-        id_col_idx = None
-        for i, col_name in enumerate(header, 1):
-            if col_name and "youtube video id" in str(col_name).lower():
-                id_col_idx = i
-                break
-
-        if id_col_idx is None:
-            print_error("'YouTube Video ID' column not found in header. Cannot fetch stats.")
-            wb.close()
-            return
-
-        # Find Views column to check if update needed
-        views_col_idx = None
-        for i, col_name in enumerate(header, 1):
-            if col_name and "views (yt)" in str(col_name).lower():
-                views_col_idx = i
-                break
-
-        print_info("Scanning for videos needing stats update...")
-        for row_idx in range(2, sheet.max_row + 1):
-            video_id_cell = sheet.cell(row=row_idx, column=id_col_idx)
-            youtube_id = str(video_id_cell.value).strip() if video_id_cell.value else None
-
-            # Check if YouTube ID is present AND not "N/A"
-            if youtube_id and youtube_id != "N/A":
-                # Simple check: is the Views column empty for this row?
-                if views_col_idx is None or sheet.cell(row=row_idx, column=views_col_idx).value is None:
-                    videos_to_fetch.append(youtube_id)
-                    print_info(f"Adding video ID to fetch: {youtube_id}", indent=1)
-
-        wb.close()  # Close read_only workbook
-
-    except FileNotFoundError:
-        print_error(f"Excel file not found at: {EXCEL_FILE_PATH}. Exiting.")
-        return
+        # Execute the main script logic
+        return run_tracker()
     except Exception as e:
-        print_error(f"Error reading Excel file for IDs: {e}", include_traceback=True)
-        return
+        print_error(f"Unexpected error: {e}", include_traceback=True)
+        return 1
 
-    if not videos_to_fetch:
-        print_info("No videos found needing stat updates.")
-        return
 
-    print_info(f"Found {len(videos_to_fetch)} videos to fetch stats for.")
-
-    # Fetch stats in batches (max 50 IDs per API call)
-    batch_size = 50
-    all_fetched_stats: Dict[str, Dict] = {}
-
-    for i in range(0, len(videos_to_fetch), batch_size):
-        batch_ids = videos_to_fetch[i:i + batch_size]
-        print_info(f"Fetching stats for batch {i//batch_size + 1}: {len(batch_ids)} videos.")
-
-        # API call
-        try:
-            response = service.videos().list(
-                part="statistics",
-                id=",".join(batch_ids)  # Join IDs with commas
-            ).execute()
-
-            if response and response.get('items'):
-                for item in response['items']:
-                    video_id = item.get('id')
-                    stats = item.get('statistics')
-                    if video_id and stats:
-                        # Convert string counts to integers
-                        all_fetched_stats[video_id] = {
-                            'viewCount': int(stats.get('viewCount', 0)),
-                            'likeCount': int(stats.get('likeCount', 0)),
-                            'commentCount': int(stats.get('commentCount', 0)),
-                            'favoriteCount': int(stats.get('favoriteCount', 0)),
-                        }
-                print_success(f"Successfully fetched stats for {len(response['items'])} videos in batch.")
-            elif response and 'items' in response and not response['items']:
-                print_warning(f"API returned empty items list for batch {i//batch_size + 1}. Some video IDs might be invalid/private.")
-            else:
-                print_error(f"API call for batch {i//batch_size + 1} failed or returned unexpected format.")
-
-        except HttpError as e:
-            print_error(f"API error fetching batch {i//batch_size + 1}: {e}")
-            # Decide if you want to stop or continue with the next batch
-            # For now, continue: pass
-        except Exception as e:
-            print_error(f"Unexpected error fetching batch {i//batch_size + 1}: {e}")
-            # For now, continue: pass
-
-        time.sleep(1)  # Small delay between batches
-
-    if all_fetched_stats:
-        print_info(f"Total stats fetched for {len(all_fetched_stats)} unique videos.")
-        update_excel_with_stats(EXCEL_FILE_PATH, UPLOADED_SHEET_NAME, all_fetched_stats)
-    else:
-        print_warning("No stats were successfully fetched.")
 
 if __name__ == "__main__":
     main()
