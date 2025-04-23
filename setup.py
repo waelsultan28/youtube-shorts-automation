@@ -11,8 +11,8 @@ setup(
     description="A suite of tools for automating YouTube Shorts creation and management",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    author="Your Name",
-    author_email="your.email@example.com",
+    author="Shahid Ali",
+    author_email="mr.shahidali.sa@gmail.com",
     packages=find_packages(),
     package_data={
         "youtube_shorts": ["data/*.template"],
@@ -36,10 +36,10 @@ setup(
         ],
     },
     python_requires=">=3.8",
+    license="MIT",
     classifiers=[
         "Development Status :: 4 - Beta",
         "Intended Audience :: End Users/Desktop",
-        "License :: OSI Approved :: MIT License",
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
