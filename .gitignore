@@ -1,6 +1,20 @@
 # Config and sensitive files
 config.txt
 *.key
+*.pem
+*.cert
+*.p12
+*.pfx
+*.password
+*.token
+*token.json
+*token.pickle
+*client_secrets.json
+*credentials.json
+.env
+.env.*
+.secret
+.netrc
 
 # Downloaded videos and metadata
 shorts_downloads/
