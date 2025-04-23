@@ -62,7 +62,7 @@ The suite includes AI-powered self-improvement capabilities in both the download
 
 2. For uploader analysis, run with the `--analyze` or `-a` flag:
    ```
-   python uploader_editing.py --analyze
+   python uploader.py --analyze
    ```
 
 3. For downloader, the self-improvement happens automatically during normal operation
