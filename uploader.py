@@ -1716,66 +1716,160 @@ def main():
                  print_error("Error: No valid action (Publish or Schedule) determined. Skipping.", indent=2)
                  continue
 
-            # --- Recording Logic ---
-            local_recording_process: Optional[subprocess.Popen] = None
-            local_recording_filename: Optional[str] = None
-            upload_successful = False # Reset for this video
-            error_during_upload_block = False # Track errors specifically in this block
+            # --- Attempt Upload with Automatic Retries ---
+            max_auto_retries = 2  # Configurable: Automatic retries before pausing
+            current_attempt = 0  # Start attempts from 0 (total max_auto_retries + 1 attempts)
+            final_upload_successful = False  # Track final success state across all attempts
+            captured_youtube_video_id = None  # Track YouTube Video ID across all attempts
+            attempted_this_video_metric = False  # Flag to ensure metrics increment only once per video
 
-            if enable_debug_recording:
-                start_result = start_recording(video_index, ffmpeg_path_config, driver)
-                if start_result:
-                    local_recording_process, local_recording_filename = start_result
+            while current_attempt <= max_auto_retries and not final_upload_successful:
+                print_info(f"--- Attempt {current_attempt + 1}/{max_auto_retries + 1} for Video Index: {video_index} ---", indent=1)
+                if current_attempt > 0:
+                    time.sleep(3)  # Small delay before automatic retry
+
+                # --- Recording Logic ---
+                local_recording_process: Optional[subprocess.Popen] = None
+                local_recording_filename: Optional[str] = None
+                error_during_this_attempt = False  # Track errors specifically in this attempt
+
+                if enable_debug_recording:
+                    start_result = start_recording(video_index, ffmpeg_path_config, driver)
+                    if start_result:
+                        local_recording_process, local_recording_filename = start_result
+                    else:
+                        print_warning(f"Could not start recording for attempt {current_attempt + 1}.", indent=2)
+                # --- End Recording Start ---
+
+                try:
+                    # Increment attempt metric only ONCE per video index
+                    if not attempted_this_video_metric:
+                        metrics["total_uploads_attempted"] += 1
+                        attempted_this_video_metric = True
+
+                    # --- Call upload_video ---
+                    captured_youtube_video_id = upload_video(
+                        driver,
+                        video_file_path,
+                        metadata,
+                        publish_now=publish_this_video_now,
+                        schedule_time=target_schedule_time,
+                        desc_limit=cfg_desc_limit,
+                        tag_char_limit=cfg_tag_limit,
+                        total_char_limit=cfg_total_tags_limit,
+                        max_count_limit=cfg_max_tags_count
+                    )
+                    # Set success based on whether we got a valid video ID
+                    final_upload_successful = captured_youtube_video_id is not None
+
+                except (NoSuchWindowException, InvalidSessionIdException) as critical_wd_error:
+                    error_during_this_attempt = True
+                    final_upload_successful = False
+                    print_error(f"CRITICAL BROWSER SESSION ERROR during attempt {current_attempt+1}: {critical_wd_error}", indent=1)
+                    print_warning(">>> SCRIPT PAUSED (CRITICAL ERROR) <<<", indent=1)
+                    user_choice_crit = input(f"{Fore.YELLOW}Browser session lost. Enter=Attempt Cleanup/Exit, Q=Force Quit: {Style.RESET_ALL}").strip().lower()
+                    if user_choice_crit == 'q':
+                        print_fatal("Force quit requested.", log_to_file=True)
+                        sys.exit(1)
+                    raise critical_wd_error  # Re-raise to exit via main finally
+
+                except Exception as upload_err:
+                    error_during_this_attempt = True
+                    final_upload_successful = False
+                    print_error(f"Upload exception (Attempt {current_attempt+1}): {upload_err}", indent=1, include_traceback=True)
+
+                finally:
+                    # --- Stop Recording Logic ---
+                    if local_recording_process:
+                        # Keep the recording if upload failed OR if an error occurred in this attempt
+                        keep_the_recording = not final_upload_successful or error_during_this_attempt
+                        stop_recording(local_recording_process, local_recording_filename, keep_the_recording)
+                    # --- End Stop Recording ---
+
+                if not final_upload_successful:
+                    status_note = "(ERROR)" if error_during_this_attempt else "(Upload Failed/Draft)"
+                    print_error(f"Upload {status_note}. Attempt {current_attempt + 1} failed.", indent=1)
+                    current_attempt += 1  # Increment attempt counter
+                    if current_attempt <= max_auto_retries:
+                        print_info(f"Automatic retry {current_attempt}/{max_auto_retries} will commence shortly...", indent=2)
+                        time.sleep(5)
                 else:
-                    print_warning(f"Could not start recording for video {video_index}. Continuing upload without recording.", indent=2)
-            # --- End Recording Start ---
+                    # Success on this attempt, break the retry loop
+                    break
 
-            try:
-                # --- Call upload_video ---
-                # Change from returning a boolean to returning the YouTube Video ID
-                captured_youtube_video_id = upload_video(
-                    driver,
-                    video_file_path,
-                    metadata,
-                    publish_now=publish_this_video_now, # Pass the calculated value
-                    schedule_time=target_schedule_time, # Pass the calculated value (None if publishing now)
-                    # Pass limits as before
-                    desc_limit=cfg_desc_limit,
-                    tag_char_limit=cfg_tag_limit,
-                    total_char_limit=cfg_total_tags_limit,
-                    max_count_limit=cfg_max_tags_count
-                )
-                # Set upload_successful based on whether we got a valid video ID
-                upload_successful = captured_youtube_video_id is not None
-                # --- End upload_video call ---
+            # --- Post-Automatic-Retry Check and Manual Pause/Retry ---
+            if not final_upload_successful:
+                print_error(f"Automatic retries ({max_auto_retries}) exhausted for video index {video_index}. Upload failed.", indent=1)
+                log_error_to_file(f"ERROR: Automatic retries exhausted for video index {video_index}.", step="retry_handler")
 
-            except (NoSuchWindowException, InvalidSessionIdException) as critical_wd_error:
-                print_fatal(f"WebDriver session invalid during upload {video_index}. Stopping run. Error: {critical_wd_error}", include_traceback=False)
-                log_error_to_file(f"FATAL: WebDriver session lost for video {video_index}. {critical_wd_error}", include_traceback=True)
-                error_during_upload_block = True
-                upload_successful = False # Ensure failure state
-                raise critical_wd_error # Re-raise critical errors to stop the main loop
-            except Exception as upload_err:
-                print_error(f"Unexpected exception during upload process for index {video_index}: {upload_err}", indent=1, include_traceback=True)
-                error_during_upload_block = True
-                upload_successful = False # Ensure failure state
+                # --- PAUSE POINT (AFTER ALL AUTOMATIC RETRIES) ---
+                while True:  # Loop for manual retry option
+                    print_warning(">>> SCRIPT PAUSED (MAX AUTO RETRIES REACHED) <<<", indent=1)
+                    user_choice = input(
+                        f"{Fore.YELLOW}Check browser/logs for video {video_index} ({video_file_name}).\n"
+                        f"Press Enter to RETRY manually (ONE more attempt), \n"
+                        f"Type 'S' to SKIP this video permanently, \n"
+                        f"Type 'Q' to QUIT script gracefully: {Style.RESET_ALL}"
+                    ).strip().lower()
 
-            finally:
-                # --- Stop Recording Logic ---
-                if local_recording_process:
-                    # Keep the recording if upload failed OR if an error occurred in the try block
-                    keep_the_recording = not upload_successful or error_during_upload_block
-                    stop_recording(local_recording_process, local_recording_filename, keep_the_recording)
-                    # Reset local vars (global vars are handled within stop_recording)
-                    local_recording_process = None
-                    local_recording_filename = None
-                # --- End Stop Recording ---
+                    if user_choice == 'q':
+                        print_fatal("Quit requested by user during pause.", log_to_file=True)
+                        raise KeyboardInterrupt("User requested quit during pause")
+                    elif user_choice == 's':
+                        print_warning(f"Skipping video index {video_index} permanently after user input.", indent=1)
+                        log_error_to_file(f"INFO: User skipped video index {video_index} after pause.", step="pause_handler")
+                        final_upload_successful = False  # Ensure it remains false
+                        break  # Exit the manual retry loop, proceed to next video
+                    else:  # Assumed Enter (Manual Retry)
+                        print_info(f"--- Manual Retry for Video Index: {video_index} ---", indent=1)
+                        local_recording_process = None
+                        local_recording_filename = None
+                        error_during_manual_attempt = False
+                        try:
+                            if enable_debug_recording:  # Start recording for manual attempt
+                                start_result = start_recording(video_index, ffmpeg_path_config, driver)
+                                if start_result:
+                                    local_recording_process, local_recording_filename = start_result
+                                else:
+                                    print_warning("Could not start recording for manual retry.", indent=2)
 
-            # --- Post-Upload Actions (Update based on successful upload) ---
-            # Update performance metrics
-            metrics["total_uploads_attempted"] += 1
+                            captured_youtube_video_id = upload_video(  # Call upload again
+                                driver,
+                                video_file_path,
+                                metadata,
+                                publish_now=publish_this_video_now,
+                                schedule_time=target_schedule_time,
+                                desc_limit=cfg_desc_limit,
+                                tag_char_limit=cfg_tag_limit,
+                                total_char_limit=cfg_total_tags_limit,
+                                max_count_limit=cfg_max_tags_count
+                            )
+                            final_upload_successful = captured_youtube_video_id is not None
 
-            if upload_successful:
+                        except (NoSuchWindowException, InvalidSessionIdException) as critical_wd_error:
+                            error_during_manual_attempt = True
+                            final_upload_successful = False
+                            print_error(f"CRITICAL BROWSER SESSION ERROR during manual retry: {critical_wd_error}", indent=1)
+                            raise critical_wd_error  # Re-raise critical to exit via main finally
+                        except Exception as upload_err:
+                            error_during_manual_attempt = True
+                            final_upload_successful = False
+                            print_error(f"Manual retry exception: {upload_err}", indent=1, include_traceback=True)
+
+                        finally:
+                            if local_recording_process:
+                                keep_the_recording = not final_upload_successful or error_during_manual_attempt
+                                stop_recording(local_recording_process, local_recording_filename, keep_the_recording)
+
+                        if final_upload_successful:
+                            print_success("Manual retry successful!", indent=1)
+                            break  # Exit the manual retry loop (success)
+                        else:
+                            print_error("Manual retry also failed.", indent=1)
+                            # Loop continues, asking the user again (Retry/Skip/Quit)
+
+            # --- Post-Upload Actions (Only if successful) ---
+            if final_upload_successful:
                 uploaded_count += 1
                 metrics["total_uploads_successful"] += 1
                 excel_save_required = True
@@ -1785,12 +1879,17 @@ def main():
                 update_excel_data(
                     downloaded_sheet, uploaded_sheet, video_index,
                     metadata.get('optimized_title', f'Video {video_index}'),
-                    datetime.now(), # Upload timestamp is always now
-                    actual_schedule_time_for_excel, # Pass the schedule time used (or None)
+                    datetime.now(),  # Upload timestamp is always now
+                    actual_schedule_time_for_excel,  # Pass the schedule time used (or None)
                     status,
-                    youtube_video_id=captured_youtube_video_id # Pass the captured YouTube Video ID
-                 )
+                    youtube_video_id=captured_youtube_video_id  # Pass the captured YouTube Video ID
+                )
                 delete_uploaded_files(video_file_path, metadata_path)
+
+                # Update last_schedule_time correctly
+                if not publish_this_video_now and target_schedule_time:
+                    last_schedule_time = target_schedule_time
+                    print_info(f"Set last_schedule_time to: {last_schedule_time:%Y-%m-%d %H:%M:%S} for next calculation", indent=2)
 
                 # Mark that the first video (if applicable in Mode A) is done
                 if first_video_this_run:
@@ -1798,12 +1897,8 @@ def main():
 
                 print_success(f"Successfully processed video index {video_index} (YT ID: {captured_youtube_video_id}). Run count: {uploaded_count}/{max_uploads}", indent=1)
             else:
-                # Failure message depends on whether an error occurred or just upload_video returned False
-                if error_during_upload_block: status_note = "(ERROR during upload)"
-                else: status_note = "(Upload Failed/Draft)"
-                print_error(f"Upload {status_note} or status UNCERTAIN for video index {video_index}. Files NOT deleted. Check logs and YT Studio.", indent=1)
-                if enable_debug_recording and not error_during_upload_block: # Remind about kept recording on simple failure
-                    print_warning(f"Debug recording (if started) was kept for video {video_index}.", indent=1)
+                # Failure message for videos that were not successfully uploaded
+                print_error(f"Upload failed for video index {video_index}. Files NOT deleted. Check logs and YT Studio.", indent=1)
                 print_warning("Continuing to the next video (if any).", indent=1)
 
             # Save metrics after each upload attempt
