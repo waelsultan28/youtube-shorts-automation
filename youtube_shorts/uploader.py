@@ -210,34 +210,132 @@ def main():
             print_info(f"Title: {video['metadata'].get('optimized_title', 'Unknown')}")
             print_info(f"File: {video['video_file']}")
 
-            # Here we would normally call the upload function
-            # For safety, we'll just simulate the upload process
-            print_info("Simulating upload process...")
-            time.sleep(2)  # Simulate upload time
+            # --- Attempt Upload with Automatic Retries ---
+            max_auto_retries = 2  # Configurable: Automatic retries before pausing
+            current_attempt = 0  # Start attempts from 0 (total max_auto_retries + 1 attempts)
+            final_upload_successful = False
+            captured_youtube_video_id = None
 
-            # Update Excel file with upload information
-            print_info("Updating Excel file with upload information...")
-            excel_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', EXCEL_FILENAME)
-            try:
-                workbook = openpyxl.load_workbook(excel_path)
-                uploaded_sheet = workbook[UPLOADED_SHEET_NAME]
+            while current_attempt <= max_auto_retries and not final_upload_successful:
+                print_info(f"--- Attempt {current_attempt + 1}/{max_auto_retries + 1} for Video ID: {video['video_id']} ---")
+                if current_attempt > 0:
+                    time.sleep(3)  # Small delay before automatic retry
 
-                # Add row to uploaded sheet
-                row = [
-                    video['video_id'],  # Video Index
-                    video['metadata'].get('optimized_title', 'Unknown'),  # Optimized Title
-                    "SIMULATED-ID",  # YouTube Video ID (simulated)
-                    datetime.now().strftime("%Y-%m-%d %H:%M:%S"),  # Upload Timestamp
-                    "N/A",  # Scheduled Time
-                    "Simulated"  # Publish Status
-                ]
-                uploaded_sheet.append(row)
+                error_during_this_attempt = False
+                try:
+                    # Here we would normally call the upload function
+                    # For safety, we'll just simulate the upload process
+                    print_info("Simulating upload process...")
+                    time.sleep(2)  # Simulate upload time
 
-                # Save workbook
-                workbook.save(excel_path)
-                print_success("Excel file updated successfully.")
-            except Exception as e:
-                print_error(f"Error updating Excel file: {e}")
+                    # Simulate success or failure (80% success rate)
+                    import random
+                    if random.random() < 0.8:
+                        captured_youtube_video_id = f"SIMULATED-ID-{video['video_id']}-{current_attempt}"
+                        final_upload_successful = True
+                        print_success(f"Upload successful! YouTube ID: {captured_youtube_video_id}")
+                    else:
+                        error_during_this_attempt = True
+                        final_upload_successful = False
+                        print_error(f"Simulated upload failure")
+                except Exception as upload_err:
+                    error_during_this_attempt = True
+                    final_upload_successful = False
+                    print_error(f"Upload exception (Attempt {current_attempt+1}): {upload_err}")
+
+                if not final_upload_successful:
+                    status_note = "(ERROR)" if error_during_this_attempt else "(Upload Failed/Draft)"
+                    print_error(f"Upload {status_note}. Attempt {current_attempt + 1} failed.")
+                    current_attempt += 1  # Increment attempt counter
+                    if current_attempt <= max_auto_retries:
+                        print_info(f"Automatic retry {current_attempt}/{max_auto_retries} will commence shortly...")
+                        time.sleep(2)
+                else:
+                    # Success on this attempt, break the retry loop
+                    break
+
+            # --- Post-Automatic-Retry Check and Manual Pause/Retry ---
+            if not final_upload_successful:
+                print_error(f"Automatic retries ({max_auto_retries}) exhausted for video ID {video['video_id']}. Upload failed.")
+
+                # --- PAUSE POINT (AFTER ALL AUTOMATIC RETRIES) ---
+                while True:  # Loop for manual retry option
+                    print_warning(">>> SCRIPT PAUSED (MAX AUTO RETRIES REACHED) <<<")
+                    user_choice = input(
+                        f"{Fore.YELLOW}Check browser/logs for video {video['video_id']}.\n"
+                        f"Press Enter to RETRY manually (ONE more attempt), \n"
+                        f"Type 'S' to SKIP this video permanently, \n"
+                        f"Type 'Q' to QUIT script gracefully: {Style.RESET_ALL}"
+                    ).strip().lower()
+
+                    if user_choice == 'q':
+                        print_warning("Quit requested by user during pause.")
+                        return
+                    elif user_choice == 's':
+                        print_warning(f"Skipping video ID {video['video_id']} permanently after user input.")
+                        final_upload_successful = False  # Ensure it remains false
+                        break  # Exit the manual retry loop, proceed to next video
+                    else:  # Assumed Enter (Manual Retry)
+                        print_info(f"--- Manual Retry for Video ID: {video['video_id']} ---")
+                        error_during_manual_attempt = False
+                        try:
+                            # Here we would normally call the upload function again
+                            # For safety, we'll just simulate the upload process
+                            print_info("Simulating manual upload process...")
+                            time.sleep(2)  # Simulate upload time
+
+                            # Simulate success or failure (90% success rate for manual retry)
+                            import random
+                            if random.random() < 0.9:
+                                captured_youtube_video_id = f"SIMULATED-ID-{video['video_id']}-MANUAL"
+                                final_upload_successful = True
+                                print_success(f"Manual upload successful! YouTube ID: {captured_youtube_video_id}")
+                            else:
+                                error_during_manual_attempt = True
+                                final_upload_successful = False
+                                print_error(f"Simulated manual upload failure")
+
+                        except Exception as upload_err:
+                            error_during_manual_attempt = True
+                            final_upload_successful = False
+                            print_error(f"Manual retry exception: {upload_err}")
+
+                        if final_upload_successful:
+                            print_success("Manual retry successful!")
+                            break  # Exit the manual retry loop (success)
+                        else:
+                            print_error("Manual retry also failed.")
+                            # Loop continues, asking the user again (Retry/Skip/Quit)
+
+            # --- Post-Upload Actions (Only if successful) ---
+            if final_upload_successful:
+                # Update Excel file with upload information
+                print_info("Updating Excel file with upload information...")
+                excel_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', EXCEL_FILENAME)
+                try:
+                    workbook = openpyxl.load_workbook(excel_path)
+                    uploaded_sheet = workbook[UPLOADED_SHEET_NAME]
+
+                    # Add row to uploaded sheet
+                    row = [
+                        video['video_id'],  # Video Index
+                        video['metadata'].get('optimized_title', 'Unknown'),  # Optimized Title
+                        captured_youtube_video_id,  # YouTube Video ID
+                        datetime.now().strftime("%Y-%m-%d %H:%M:%S"),  # Upload Timestamp
+                        "N/A",  # Scheduled Time
+                        "Simulated"  # Publish Status
+                    ]
+                    uploaded_sheet.append(row)
+
+                    # Save workbook
+                    workbook.save(excel_path)
+                    print_success("Excel file updated successfully.")
+                except Exception as e:
+                    print_error(f"Error updating Excel file: {e}")
+
+                print_success(f"Successfully processed video ID {video['video_id']} (YT ID: {captured_youtube_video_id}).")
+            elif not final_upload_successful:
+                print_warning(f"Video ID {video['video_id']} was ultimately not uploaded successfully.")
 
         # Close browser
         print_info("Closing browser...")
