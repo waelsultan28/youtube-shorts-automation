@@ -496,26 +496,48 @@ def generate_seo_metadata(video_topic, uploader_name="Unknown Uploader", origina
 
 # MODIFIED FOR COMBINED SCRIPT - Uses SEO Style Fallback & Tracks SEO Errors
 def generate_metadata_with_timeout(video_title, uploader_name, original_title="Unknown Title", timeout=METADATA_TIMEOUT_SECONDS):
-    """Generates metadata with a timeout (SEO Style Fallback)."""
+    """Generates metadata with a timeout (SEO Style Fallback) and suggests category."""
     metadata_metrics = load_metadata_metrics()
-    metadata_metrics["total_api_calls"] += 1
+    metadata_metrics["total_api_calls"] += 1 # Count main metadata call
     error_type = None
     error_details = None
+    result_metadata = None # Initialize result
 
     try:
         with concurrent.futures.ThreadPoolExecutor() as executor:
+            # --- Generate Title/Desc/Tags ---
+            print_info("Generating primary SEO metadata (Title/Desc/Tags)...", 2)
             future = executor.submit(generate_seo_metadata, video_title, uploader_name, original_title)
-            result = future.result(timeout=timeout)
+            result_metadata = future.result(timeout=timeout) # Get the main metadata first
+
+            # --- Now Suggest Category (if primary metadata succeeded) ---
+            suggested_category = None
+            if result_metadata: # Only proceed if primary metadata generation didn't fail/timeout critically
+                 # Use the *generated* title and description for category suggestion
+                gen_title = result_metadata.get("title", video_title)
+                gen_desc = result_metadata.get("description", "")
+                if gen_title and gen_desc:
+                    # We don't need timeout here, make it a quick synchronous call
+                    # No separate thread needed for the category suggestion
+                    try:
+                        suggested_category = get_suggested_category(gen_title, gen_desc)
+                        if suggested_category:
+                            result_metadata['suggested_category'] = suggested_category
+                    except Exception as cat_err:
+                         print_error(f"Error occurred during category suggestion call: {cat_err}", 2)
+                         # Continue without suggested category if this specific call fails
+                else:
+                     print_warning("Skipping category suggestion because generated title/description was empty.", 2)
 
             # Check for parsing errors / empty results specifically for SEO context
             # (Title check is less strict as fallback is the topic itself before length adjustment)
             # Check if description is still the default/error fallback
-            if f"Default SEO description for {video_title}" in result.get("description", ""):
+            if f"Default SEO description for {video_title}" in result_metadata.get("description", ""):
                  metadata_metrics["empty_description_errors"] += 1
                  error_type = "empty_description"
                  error_details = f"Failed to generate description for: {video_title}"
             # Check if tags are still the default/error fallback
-            if result.get("tags") == ["gta", "shorts", "gaming", video_title.lower().replace(" ", "")]:
+            if result_metadata.get("tags") == ["gta", "shorts", "gaming", video_title.lower().replace(" ", "")]:
                  metadata_metrics["empty_tags_errors"] += 1
                  error_type = error_type or "empty_tags" # Keep first error type found
                  error_details = error_details or f"Failed to generate tags for: {video_title}"
@@ -525,15 +547,15 @@ def generate_metadata_with_timeout(video_title, uploader_name, original_title="U
                 add_error_sample(metadata_metrics, error_type, error_details, video_title)
 
             save_metadata_metrics(metadata_metrics) # Save after checking result
-            return result
+            return result_metadata # Return the metadata dict (potentially with suggested_category)
 
     except concurrent.futures.TimeoutError:
-        print_warning(f"Metadata generation timed out [SEO] for: {video_title}", 1)
+        print_warning(f"Primary metadata generation timed out [SEO] for: {video_title}", 1)
         metadata_metrics["timeouts"] += 1
         add_error_sample(metadata_metrics, "timeout", f"Metadata generation timed out for: {video_title}", video_title)
         save_metadata_metrics(metadata_metrics)
 
-        # Fallback metadata consistent with SEO Style
+        # Fallback metadata consistent with SEO Style (NO suggested category here)
         fallback_title = video_title
         if len(fallback_title) > TARGET_TITLE_LENGTH:
              truncated = fallback_title[:TARGET_TITLE_LENGTH]
@@ -545,14 +567,15 @@ def generate_metadata_with_timeout(video_title, uploader_name, original_title="U
             "title": fallback_title,
             "description": f"Default SEO description for {video_title}. Generation timed out.\n\nCredit to: {uploader_name}\nOriginal Title: {original_title}",
             "tags": ["gta", "shorts", "gaming", "timeout", video_title.lower().replace(" ", "")]
+            # No 'suggested_category' in timeout fallback
         }
     except Exception as e:
-        print_error(f"Error submitting metadata generation job [SEO] for '{video_title}': {e}", 1, include_traceback=True)
+        print_error(f"Error submitting primary metadata generation job [SEO] for '{video_title}': {e}", 1, include_traceback=True)
         metadata_metrics["parse_failures"] += 1 # Use parse_failures for general exceptions during generation
         add_error_sample(metadata_metrics, "exception", f"Error: {str(e)} for: {video_title}", video_title)
         save_metadata_metrics(metadata_metrics)
 
-        # Fallback metadata consistent with SEO Style
+        # Fallback metadata consistent with SEO Style (NO suggested category here)
         fallback_title = video_title
         if len(fallback_title) > TARGET_TITLE_LENGTH:
              truncated = fallback_title[:TARGET_TITLE_LENGTH]
@@ -564,6 +587,7 @@ def generate_metadata_with_timeout(video_title, uploader_name, original_title="U
             "title": fallback_title,
             "description": f"Default SEO description for {video_title}. Error during task submission: {e}\n\nCredit to: {uploader_name}\nOriginal Title: {original_title}",
             "tags": ["gta", "shorts", "gaming", "error", "submission"]
+            # No 'suggested_category' in exception fallback
         }
 
 # --- Keyword Generation (Kept from downloader - B.py - includes top performers) ---
@@ -665,6 +689,61 @@ def improve_metadata_prompt(error_metrics):
         return improved_prompt
     except Exception as e:
         print_error(f"Error generating improved SEO metadata prompt: {e}", 1, include_traceback=True)
+        return None
+
+# --- Category Suggestion Function ---
+def get_suggested_category(title: str, description: str):
+    """Asks Gemini for the most appropriate YouTube category."""
+    if not title or not description:
+        print_warning("Cannot suggest category: Title or Description is empty.", 2)
+        return None
+
+    # Simple list for basic validation (can be expanded)
+    # Source: https://developers.google.com/youtube/v3/docs/videoCategories/list (Common ones)
+    KNOWN_CATEGORIES = [
+        "Film & Animation", "Autos & Vehicles", "Music", "Pets & Animals",
+        "Sports", "Travel & Events", "Gaming", "People & Blogs", "Comedy",
+        "Entertainment", "News & Politics", "Howto & Style", "Education",
+        "Science & Technology", "Nonprofits & Activism", "Movies", "Shows"
+    ]
+    KNOWN_CATEGORIES_LOWER = {cat.lower() for cat in KNOWN_CATEGORIES}
+
+    prompt = f"""
+    Based on the following YouTube Shorts video Title and Description:
+
+    Title: {title}
+    Description: {description[:1000]} # Limit description length for prompt
+
+    What is the single most appropriate YouTube Video Category Name for this content?
+    Choose ONE from the standard YouTube categories (like Gaming, Entertainment, Music, Howto & Style, Education, etc.).
+    Output ONLY the category name and nothing else. For example: Gaming
+    """
+    try:
+        print_info("Requesting category suggestion from Gemini...", 3)
+        # Using flash for potentially faster/cheaper category suggestion
+        model = genai.GenerativeModel("gemini-1.5-flash")
+        response = model.generate_content(prompt)
+        suggested_cat_raw = response.text.strip()
+
+        # Basic validation: Check if it's non-empty and somewhat resembles known categories
+        if suggested_cat_raw and suggested_cat_raw.lower() in KNOWN_CATEGORIES_LOWER:
+            # Find the correctly capitalized version
+            for known_cat in KNOWN_CATEGORIES:
+                if known_cat.lower() == suggested_cat_raw.lower():
+                    print_success(f"Suggested category: {known_cat}", 3)
+                    return known_cat
+            # Should not happen if lower check passed, but fallback just in case
+            print_warning(f"Could not find exact capitalization for suggested category '{suggested_cat_raw}'. Using it as is.", 3)
+            return suggested_cat_raw
+        elif suggested_cat_raw:
+             print_warning(f"Gemini suggested an unknown or unexpected category: '{suggested_cat_raw}'. Ignoring suggestion.", 3)
+             return None # Return None if it's not a recognized category name
+        else:
+            print_warning("Gemini returned an empty category suggestion.", 3)
+            return None
+
+    except Exception as e:
+        print_error(f"Error getting category suggestion: {e}", 3)
         return None
 
 # --- Performance Metrics & Tuning Suggestions (Kept from downloader - B.py) ---
@@ -820,7 +899,8 @@ def save_metadata(entry, video_index, seo_metadata, metadata_folder_path, curren
         "metadata_strategy": "A: SEO/Discoverability", # Strategy marker
         "video_index": f"video{video_index}", # Internal index for correlation
         "discovery_keyword": current_keyword, # Keyword that found this video
-        "original_yt_id_at_download": video_id # Explicitly store original ID
+        "original_yt_id_at_download": video_id, # Explicitly store original ID
+        "suggested_category": seo_metadata.get("suggested_category") # Will be None if not generated
     }
     metadata_file_name = f"video{video_index}.json"
     metadata_file_path = os.path.join(metadata_folder_path, metadata_file_name)

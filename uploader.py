@@ -986,27 +986,108 @@ def upload_video(
         except Exception as e: print_error(f"Unexpected error adding tags: {e}", indent=3, include_traceback=False); log_error_to_file(f"Error adding tags {video_index}: {e}", include_traceback=True)
         # --- End Tags ---
 
-        # --- Select Category (with Fallbacks) ---
-        print_info(f"Selecting category: '{upload_category}'...", indent=2)
-        category_dropdown_xpath_options = [ "//ytcp-form-select[@id='category']//ytcp-dropdown-trigger", "//ytcp-form-select[@id='category']//div[@class='left-container style-scope ytcp-dropdown-trigger']", ]
-        category_option_xpath_options = [ f"//yt-formatted-string[text()='{upload_category}']", f"//yt-formatted-string[normalize-space()='{upload_category}']", f"//ytcp-ve[@class='ytcp-form-select-options' and not(@hidden)]//yt-formatted-string[normalize-space(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'))='{upload_category.lower()}']" ]
-        category_dropdown = None
-        for i, xpath in enumerate(category_dropdown_xpath_options):
-            try: print_info(f"Trying category dropdown XPath {i+1}: {xpath}", indent=3); category_dropdown = wait_short.until(EC.element_to_be_clickable((By.XPATH, xpath))); print_success(f"Found category dropdown with XPath {i+1}", indent=3); break
-            except Exception: print_warning(f"Category dropdown XPath {i+1} failed, trying next...", indent=3);
-            if i == len(category_dropdown_xpath_options) - 1: print_error("All category dropdown XPaths failed.", indent=3);
-            raise TimeoutException("Failed to find category dropdown with any XPath.")
+        # --- Select Category (with Dynamic Suggestion Fallback) ---
+        suggested_category = metadata.get('suggested_category') # Get suggested category from loaded metadata
+        category_to_use = upload_category # Default to category from config.txt
+
+        if suggested_category:
+            print_info(f"Attempting to use suggested category: '{suggested_category}'", indent=2)
+            category_to_use = suggested_category # Prioritize suggested category
+        else:
+            print_info(f"No suggested category found in metadata. Using default from config: '{upload_category}'", indent=2)
+
+        category_selected_successfully = False
         try:
+            # Use category_to_use (either suggested or default) in the XPaths
+            print_info(f"Selecting category: '{category_to_use}'...", indent=2)
+            category_dropdown_xpath_options = [
+                "//ytcp-form-select[@id='category']//ytcp-dropdown-trigger",
+                "//ytcp-form-select[@id='category']//div[@class='left-container style-scope ytcp-dropdown-trigger']",
+            ]
+            # Dynamically create option XPaths based on the category we are trying to use
+            category_option_xpath_options = [
+                f"//yt-formatted-string[text()='{category_to_use}']",
+                f"//yt-formatted-string[normalize-space()='{category_to_use}']",
+                f"//ytcp-ve[@class='ytcp-form-select-options' and not(@hidden)]//yt-formatted-string[normalize-space(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'))='{category_to_use.lower()}']"
+            ]
+
+            category_dropdown = None
+            for i, xpath in enumerate(category_dropdown_xpath_options):
+                try:
+                    print_info(f"Trying category dropdown XPath {i+1}: {xpath}", indent=3)
+                    category_dropdown = wait_short.until(EC.element_to_be_clickable((By.XPATH, xpath)))
+                    print_success(f"Found category dropdown with XPath {i+1}", indent=3); break
+                except Exception:
+                    print_warning(f"Category dropdown XPath {i+1} failed, trying next...", indent=3);
+                    if i == len(category_dropdown_xpath_options) - 1:
+                        print_error("All category dropdown XPaths failed.", indent=3);
+                        raise TimeoutException("Failed to find category dropdown with any XPath.") # Re-raise if dropdown fails
+
+            # Attempt to click dropdown and select the category_to_use
             driver.execute_script("arguments[0].scrollIntoView({block:'center'});", category_dropdown); time.sleep(0.3)
-            category_dropdown.click(); mimic_human_action_delay(0.4, 0.8); category_option = None
+            category_dropdown.click(); mimic_human_action_delay(0.4, 0.8);
+            category_option = None
             for i_opt, xpath_opt in enumerate(category_option_xpath_options):
-                 try: print_info(f"Trying category option XPath {i_opt+1}: {xpath_opt}", indent=3); category_option = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, xpath_opt))); print_success(f"Found category option with XPath {i_opt+1}", indent=3); break
-                 except Exception: print_warning(f"Category option XPath {i_opt+1} failed, trying next...", indent=3);
-                 if i_opt == len(category_option_xpath_options) - 1: print_error(f"All category option XPaths failed for '{upload_category}'.", indent=3); raise TimeoutException(f"Failed to find category option '{upload_category}' with any XPath.")
-            category_option.click(); mimic_human_action_delay(0.2, 0.4); print_success("Category selected.", indent=3)
-        except TimeoutException as e: print_error(f"Timeout finding/clicking Category dropdown or option '{upload_category}'. Using default/existing category.", indent=3); log_error_to_file(f"Error: Timeout selecting category {upload_category} for {video_index}: {e}")
-        except Exception as e: print_error(f"Error selecting category '{upload_category}': {e}. Using default/existing.", indent=3, include_traceback=False); log_error_to_file(f"Error selecting category {upload_category} for {video_index}: {e}", include_traceback=True)
-        # --- End Category ---
+                try:
+                    print_info(f"Trying category option XPath {i_opt+1}: {xpath_opt}", indent=3);
+                    category_option = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, xpath_opt)))
+                    print_success(f"Found category option '{category_to_use}' with XPath {i_opt+1}", indent=3); break
+                except Exception:
+                    print_warning(f"Category option XPath {i_opt+1} failed, trying next...", indent=3);
+                    if i_opt == len(category_option_xpath_options) - 1:
+                        # Option not found, raise exception to trigger fallback
+                        raise TimeoutException(f"Failed to find category option '{category_to_use}' with any XPath.")
+
+            category_option.click(); mimic_human_action_delay(0.2, 0.4);
+            print_success(f"Category '{category_to_use}' selected.", indent=3)
+            category_selected_successfully = True
+
+        except Exception as category_err:
+            print_error(f"Error selecting category '{category_to_use}': {category_err}. ", indent=3, include_traceback=False)
+            log_error_to_file(f"Error selecting category '{category_to_use}' for {video_index}: {category_err}", include_traceback=True)
+
+            # --- Fallback Logic ---
+            if suggested_category and category_to_use == suggested_category:
+                # The suggested category failed, now try the default from config
+                print_warning(f"Attempting fallback to default category: '{upload_category}'", indent=3)
+                category_to_use = upload_category # Set category to use to the default
+                try:
+                    # Re-attempt finding the dropdown (might be closed after error)
+                    # NOTE: Assuming dropdown finder logic is robust enough, otherwise repeat it here.
+                    # If dropdown click failed initially, this might also fail.
+                    # We need to find the *option* for the default category now.
+                    category_option_xpath_options_fallback = [
+                        f"//yt-formatted-string[text()='{upload_category}']",
+                        f"//yt-formatted-string[normalize-space()='{upload_category}']",
+                        f"//ytcp-ve[@class='ytcp-form-select-options' and not(@hidden)]//yt-formatted-string[normalize-space(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'))='{upload_category.lower()}']"
+                     ]
+                    category_option_fallback = None
+                    for i_opt, xpath_opt in enumerate(category_option_xpath_options_fallback):
+                         try:
+                             print_info(f"Trying category option XPath (fallback) {i_opt+1}: {xpath_opt}", indent=3);
+                             category_option_fallback = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, xpath_opt)))
+                             print_success(f"Found category option '{upload_category}' (fallback) with XPath {i_opt+1}", indent=3); break
+                         except Exception:
+                             print_warning(f"Category option XPath (fallback) {i_opt+1} failed...", indent=3);
+                             if i_opt == len(category_option_xpath_options_fallback) - 1:
+                                 raise TimeoutException(f"Failed to find fallback category option '{upload_category}'.")
+
+                    category_option_fallback.click(); mimic_human_action_delay(0.2, 0.4);
+                    print_success(f"Successfully selected default category '{upload_category}' after suggested failed.", indent=3)
+                    category_selected_successfully = True # Mark success after fallback
+
+                except Exception as fallback_err:
+                     print_error(f"Fallback to default category '{upload_category}' also failed: {fallback_err}", indent=3, include_traceback=False)
+                     log_error_to_file(f"Error selecting fallback category '{upload_category}' for {video_index}: {fallback_err}", include_traceback=True)
+                     # Continue without guaranteeing category selection, or maybe raise error? For now, continue.
+                     print_warning("Proceeding with upload, but category may not be set correctly.", indent=3)
+            else:
+                 # The default category failed initially, or it was an unexpected error
+                 print_warning(f"Could not select the primary category '{category_to_use}'. Proceeding, but category may be incorrect.", indent=3)
+                 # Continue without guaranteeing category selection
+
+
+        # --- End Category Selection ---
 
 
         # --- Click through "Next" buttons ---
