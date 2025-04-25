@@ -558,26 +558,44 @@ def check_and_update_scheduled(uploaded_sheet: Worksheet) -> bool:
     print_info("Checking status of previously scheduled videos...")
     updated_count = 0; changes_made = False; now = datetime.now()
     if not uploaded_sheet or uploaded_sheet.max_row < 2: print_info("Uploaded sheet empty or only has headers. No check needed.", indent=1); return False
+
+    # Corrected Column Indices: Schedule Time=5, Publish Status=6
+    schedule_time_col_idx = 5
+    publish_status_col_idx = 6
+    video_id_col_idx = 1 # Keep as 1
+
     for row_idx in range(2, uploaded_sheet.max_row + 1):
         try:
-            schedule_time_cell = uploaded_sheet.cell(row=row_idx, column=4); publish_status_cell = uploaded_sheet.cell(row=row_idx, column=5); video_id_cell = uploaded_sheet.cell(row=row_idx, column=1)
+            # Use the corrected column indices
+            schedule_time_cell = uploaded_sheet.cell(row=row_idx, column=schedule_time_col_idx)
+            publish_status_cell = uploaded_sheet.cell(row=row_idx, column=publish_status_col_idx)
+            video_id_cell = uploaded_sheet.cell(row=row_idx, column=video_id_col_idx)
+
             video_id_str = str(video_id_cell.value) if video_id_cell.value else f"Row {row_idx}"
+
+            # Check the correct status cell and that the schedule time cell has a value
             if publish_status_cell.value == "Scheduled" and schedule_time_cell.value and str(schedule_time_cell.value).strip().upper() != "N/A":
                 schedule_time_str = str(schedule_time_cell.value)
                 try:
                     # Handle potential floating point representation from Excel
                     if isinstance(schedule_time_cell.value, float):
-                        # Convert Excel float serial date to datetime
-                         schedule_time = datetime.fromtimestamp(time.mktime(time.gmtime((schedule_time_cell.value - 25569) * 86400.0))) # Rough conversion, might need timezone adjustment depending on source
+                         schedule_time = datetime.fromtimestamp(time.mktime(time.gmtime((schedule_time_cell.value - 25569) * 86400.0)))
                     elif isinstance(schedule_time_cell.value, datetime):
                          schedule_time = schedule_time_cell.value
                     else: # Assume string format
                          schedule_time = datetime.strptime(schedule_time_str, "%Y-%m-%d %H:%M:%S")
 
-                    if now >= schedule_time: publish_status_cell.value = "Published"; print_success(f"Updated status for {video_id_str} to 'Published'.", indent=2); updated_count += 1; changes_made = True
-                except (ValueError, TypeError): msg = f"Could not parse schedule time for {video_id_str}: Value='{schedule_time_str}', Format expected 'YYYY-MM-DD HH:MM:SS' or datetime object"; print_warning(msg, indent=2); log_error_to_file(f"Warning: {msg}"); continue
+                    # Compare current time with parsed schedule time
+                    if now >= schedule_time:
+                        publish_status_cell.value = "Published" # Update the correct status cell
+                        print_success(f"Updated status for {video_id_str} to 'Published'.", indent=2)
+                        updated_count += 1
+                        changes_made = True
+                except (ValueError, TypeError):
+                     msg = f"Could not parse schedule time for {video_id_str}: Value='{schedule_time_str}', Format expected 'YYYY-MM-DD HH:MM:SS' or datetime object"; print_warning(msg, indent=2); log_error_to_file(f"Warning: {msg}"); continue
         except Exception as e:
-             video_id_cell = uploaded_sheet.cell(row=row_idx, column=1); video_id_str = str(video_id_cell.value) if video_id_cell.value else f"Row {row_idx}"
+             # Use video_id_col_idx here too for consistency
+             video_id_cell = uploaded_sheet.cell(row=row_idx, column=video_id_col_idx); video_id_str = str(video_id_cell.value) if video_id_cell.value else f"Row {row_idx}"
              msg = f"Unexpected error checking schedule status for {video_id_str}: {e}"; print_error(msg, indent=2, include_traceback=False); log_error_to_file(msg, include_traceback=True); continue
     if updated_count > 0: print_info(f"Checked scheduled videos. Updated status for {updated_count} videos.", indent=1)
     else: print_info("Checked scheduled videos. No status updates needed based on current time.", indent=1)
