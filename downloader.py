@@ -5,7 +5,7 @@ import yt_dlp
 import google.generativeai as genai
 import re
 import concurrent.futures
-from datetime import datetime
+from datetime import datetime, timedelta
 from openpyxl import Workbook, load_workbook
 import random
 import math
@@ -53,6 +53,9 @@ METADATA_METRICS_FILENAME = "metadata_metrics.json" # File to track metadata gen
 PERFORMANCE_METRICS_FILENAME = "performance_metrics.json" # File to track overall performance metrics
 TUNING_SUGGESTIONS_FILENAME = "tuning_suggestions.log" # File to store parameter tuning suggestions
 
+# --- Correlation Cache Constants ---
+UPLOAD_CORRELATION_CACHE_FILENAME = "upload_correlation_cache.json" # For tracking correlation between video index, discovery keyword, and YouTube Video ID
+
 # Keyword optimization settings
 KEYWORDS_TO_PROCESS_PER_RUN = 5  # Number of keywords to select for each run
 MIN_KEYWORDS_THRESHOLD = 20      # Minimum number of keywords before generating new ones
@@ -74,6 +77,72 @@ _current_seo_prompt_template = None # Will be loaded/set later
 
 
 # --- Function Definitions ---
+
+# --- Correlation Cache Functions ---
+def load_correlation_cache():
+    """Loads the upload correlation cache from JSON file."""
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    cache_path = os.path.join(script_dir, UPLOAD_CORRELATION_CACHE_FILENAME)
+    default_cache = []
+    if not os.path.exists(cache_path):
+        print_info("Correlation cache file not found. Cannot correlate performance.")
+        return default_cache
+    try:
+        with open(cache_path, "r", encoding="utf-8") as f:
+            content = f.read()
+            if not content: return default_cache
+            cache = json.loads(content)
+            if not isinstance(cache, list):
+                 print_warning(f"Correlation cache file '{UPLOAD_CORRELATION_CACHE_FILENAME}' has invalid format. Returning empty cache.")
+                 return default_cache
+            return cache
+    except json.JSONDecodeError:
+        print_error(f"Error decoding JSON from correlation cache file '{UPLOAD_CORRELATION_CACHE_FILENAME}'. Returning empty cache.")
+        return default_cache
+    except Exception as e:
+        print_error(f"Error loading correlation cache: {e}", include_traceback=True)
+        return default_cache
+
+def save_correlation_cache(cache_data):
+    """Saves the upload correlation cache to JSON file."""
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    cache_path = os.path.join(script_dir, UPLOAD_CORRELATION_CACHE_FILENAME)
+    try:
+        with open(cache_path, "w", encoding="utf-8") as f:
+            json.dump(cache_data, f, ensure_ascii=False, indent=4)
+    except Exception as e:
+        print_error(f"Error saving correlation cache: {e}", include_traceback=True)
+
+def cleanup_correlation_cache(days_to_keep=7):
+    """Removes entries older than specified days from the correlation cache."""
+    cache = load_correlation_cache()
+    if not cache:
+        return # Nothing to cleanup
+
+    now = datetime.now()
+    cutoff_date = now - timedelta(days=days_to_keep)
+    original_count = len(cache)
+    cleaned_cache = []
+    removed_count = 0
+
+    for entry in cache:
+        try:
+            added_time = datetime.fromisoformat(entry.get("added_timestamp"))
+            if added_time >= cutoff_date:
+                cleaned_cache.append(entry)
+            else:
+                removed_count += 1
+        except (ValueError, TypeError, KeyError):
+            # If timestamp is invalid or missing, keep the entry for now
+            # Or decide to remove it if strict cleanup is needed
+            print_warning(f"Invalid or missing timestamp in correlation cache entry: {entry.get('video_index', 'Unknown')}. Keeping entry.")
+            cleaned_cache.append(entry) # Keep potentially problematic entries for manual review
+
+    if removed_count > 0:
+        save_correlation_cache(cleaned_cache)
+        print_info(f"Cleaned up {removed_count} old entries (>{days_to_keep} days) from correlation cache. {len(cleaned_cache)} remaining.")
+    else:
+        print_info("No old entries found in correlation cache to cleanup.")
 
 # --- Keyword Generation (Kept from downloader - B.py - includes top performers) ---
 def generate_keywords_from_niche(seed_niche, num_keywords=10, top_performing_keywords=None):
@@ -971,72 +1040,78 @@ if __name__ == "__main__":
         print_info(f"Starting video counter at: video{video_counter}")
         print_info(f"Total keywords available for searching: {len(search_keywords)}")
 
-        # --- Load Uploaded Video Performance Data (Needed for Keyword Scoring) ---
-        print(f"{Fore.BLUE}--- Loading Uploaded Video Performance Data ---{Style.RESET_ALL}")
-        uploaded_performance_data = {} # Key: videoX string, Value: Dict
+        # --- Load Uploaded Video Performance Data from Excel ---
+        print(f"{Fore.BLUE}--- Loading Uploaded Video Performance Data (Excel) ---{Style.RESET_ALL}")
+        uploaded_performance_data = {} # Key: YouTube Video ID, Value: Dict of performance data
         try:
             if os.path.exists(EXCEL_FILE_PATH):
                 wb_perf = load_workbook(EXCEL_FILE_PATH, read_only=True, data_only=True)
                 if UPLOADED_SHEET_NAME in wb_perf.sheetnames:
                     sheet_perf = wb_perf[UPLOADED_SHEET_NAME]
                     header_perf = [cell.value for cell in sheet_perf[1]]
-                    # Find columns (indices start from 1)
                     try:
                         col_indices = {str(name).lower().strip(): i for i, name in enumerate(header_perf, 1) if name}
-                        video_index_col = col_indices.get('video index')
+                        # Need YT ID to link with cache, other stats are optional
                         uploaded_yt_id_col = col_indices.get('youtube video id')
-                        views_col = col_indices.get('views (yt)') # Optional stats
-                        likes_col = col_indices.get('likes (yt)') # Optional stats
-                        comments_col = col_indices.get('comments (yt)') # Optional stats
+                        views_col = col_indices.get('views (yt)')
+                        likes_col = col_indices.get('likes (yt)')
+                        comments_col = col_indices.get('comments (yt)')
 
-                        if not video_index_col or not uploaded_yt_id_col:
-                            print_warning(f"Required columns ('Video Index', 'YouTube Video ID') not found in '{UPLOADED_SHEET_NAME}' sheet. Performance data cannot be loaded.", 1)
+                        if not uploaded_yt_id_col:
+                            print_warning(f"Required column 'YouTube Video ID' not found in '{UPLOADED_SHEET_NAME}' sheet. Performance data cannot be loaded.", 1)
                         else:
                             for row_idx in range(2, sheet_perf.max_row + 1):
-                                video_index_str = str(sheet_perf.cell(row=row_idx, column=video_index_col).value or "").strip()
                                 uploaded_yt_id = str(sheet_perf.cell(row=row_idx, column=uploaded_yt_id_col).value or "").strip()
-
-                                if video_index_str.lower().startswith("video") and uploaded_yt_id and uploaded_yt_id != "N/A":
+                                if uploaded_yt_id and uploaded_yt_id != "N/A":
                                     views = 0; likes = 0; comments = 0
                                     try: # Safely get optional stats
                                         if views_col: views = int(sheet_perf.cell(row=row_idx, column=views_col).value or 0)
                                         if likes_col: likes = int(sheet_perf.cell(row=row_idx, column=likes_col).value or 0)
                                         if comments_col: comments = int(sheet_perf.cell(row=row_idx, column=comments_col).value or 0)
                                     except (ValueError, TypeError): pass # Ignore conversion errors, keep 0
-
-                                    uploaded_performance_data[video_index_str] = {"uploaded_yt_id": uploaded_yt_id, "views": views, "likes": likes, "comments": comments}
-                            print_success(f"Loaded performance data for {len(uploaded_performance_data)} uploaded videos.")
+                                    # Use YT ID as the key now
+                                    uploaded_performance_data[uploaded_yt_id] = {"views": views, "likes": likes, "comments": comments}
+                            print_success(f"Loaded performance data for {len(uploaded_performance_data)} uploaded videos from Excel.")
                     except Exception as e: print_error(f"Error parsing '{UPLOADED_SHEET_NAME}' sheet: {e}", 1, include_traceback=True)
                     wb_perf.close()
                 else: print_info(f"'{UPLOADED_SHEET_NAME}' sheet not found. No upload performance data to load.")
         except FileNotFoundError: print_info(f"Excel file '{EXCEL_FILE_PATH}' not found. No upload performance data to load.")
         except Exception as e: print_error(f"Error loading Excel for performance data: {e}", 1, include_traceback=True)
 
-        # --- Correlate Performance Data with Keywords ---
-        print(f"{Fore.BLUE}--- Correlating Performance Data with Keywords ---{Style.RESET_ALL}")
+
+        # --- Correlate Performance Data with Keywords using Correlation Cache ---
+        print(f"{Fore.BLUE}--- Correlating Performance Data with Keywords (Cache) ---{Style.RESET_ALL}")
         keyword_performance_feedback = {} # Key: keyword, Value: List of perf dicts
-        if uploaded_performance_data:
-            metadata_files = [f for f in os.listdir(METADATA_FOLDER) if f.lower().startswith('video') and f.lower().endswith('.json')]
-            if metadata_files:
-                print_info(f"Scanning {len(metadata_files)} metadata files in {METADATA_FOLDER}...", 1)
-                correlated_count = 0
-                for meta_file in metadata_files:
-                    meta_file_path = os.path.join(METADATA_FOLDER, meta_file)
-                    try:
-                        with open(meta_file_path, 'r', encoding='utf-8') as f: meta = json.load(f)
-                        video_index_str = meta.get("video_index")
-                        discovery_keyword = meta.get("discovery_keyword")
-                        if video_index_str and discovery_keyword and video_index_str in uploaded_performance_data:
-                            perf_data = uploaded_performance_data[video_index_str]
-                            if discovery_keyword not in keyword_performance_feedback: keyword_performance_feedback[discovery_keyword] = []
-                            keyword_performance_feedback[discovery_keyword].append(perf_data)
-                            correlated_count += 1
-                            # print_info(f"Correlated {video_index_str} performance with keyword '{discovery_keyword}'.", 2) # Verbose
-                    except json.JSONDecodeError: print_warning(f"Skipping malformed JSON metadata file: {meta_file}", 2); continue
-                    except Exception as e: print_error(f"Error reading metadata file {meta_file} for correlation: {e}", 2); continue
-                print_success(f"Correlated performance data for {len(keyword_performance_feedback)} keywords ({correlated_count} video links).")
-            else: print_info("No metadata files found to correlate performance data.")
-        else: print_info("No uploaded performance data loaded to correlate.")
+        correlation_cache = load_correlation_cache() # Load the new cache
+
+        if uploaded_performance_data and correlation_cache:
+            print_info(f"Processing {len(correlation_cache)} entries from correlation cache.", 1)
+            correlated_count = 0
+            # Iterate through the cache entries
+            for cache_entry in correlation_cache:
+                youtube_video_id = cache_entry.get("youtube_video_id")
+                discovery_keyword = cache_entry.get("discovery_keyword")
+                video_index = cache_entry.get("video_index") # For logging clarity
+
+                # Check if we have performance data for this YT ID
+                if youtube_video_id and discovery_keyword and youtube_video_id in uploaded_performance_data:
+                    perf_data = uploaded_performance_data[youtube_video_id]
+
+                    # Add to keyword performance feedback
+                    if discovery_keyword not in keyword_performance_feedback:
+                        keyword_performance_feedback[discovery_keyword] = []
+                    keyword_performance_feedback[discovery_keyword].append(perf_data)
+                    correlated_count += 1
+                    # print_info(f"Correlated {video_index} performance (YT ID: {youtube_video_id}) with keyword '{discovery_keyword}'.", 2) # Verbose log
+
+            print_success(f"Correlated performance data for {len(keyword_performance_feedback)} keywords using cache ({correlated_count} video links).")
+            # --- Cleanup old entries from correlation cache ---
+            cleanup_correlation_cache(days_to_keep=7) # Adjust days_to_keep if needed
+
+        elif not correlation_cache:
+            print_info("Correlation cache is empty. Cannot correlate performance.")
+        elif not uploaded_performance_data:
+             print_info("No uploaded performance data loaded from Excel. Cannot correlate.")
 
         # --- Update Keyword Scores ---
         print(f"{Fore.BLUE}--- Updating Keyword Scores with Performance Feedback ---{Style.RESET_ALL}")
@@ -1215,6 +1290,14 @@ if __name__ == "__main__":
                                 print_success(f"Download successful: {video_file_name}", 3)
                                 print_info("Saving metadata JSON...", 3); saved_metadata = save_metadata(entry, video_counter, seo_metadata, METADATA_FOLDER, current_keyword=keyword); print_success("Metadata saved.", 4)
                                 print_info("Adding entry to Excel (in memory)...", 3); downloaded_sheet.append([ f"video{video_counter}", saved_metadata["optimized_title"], datetime.now().strftime("%Y-%m-%d %H:%M:%S"), saved_metadata["view_count"], saved_metadata["uploader"], saved_metadata["original_title"] ]); print_success("Entry added.", 4)
+
+                                # Cleanup info.json immediately after saving metadata
+                                if os.path.exists(info_json_path):
+                                    try:
+                                        os.remove(info_json_path)
+                                        print_info(f"Deleted info.json file after saving metadata", 4)
+                                    except OSError as e_del:
+                                        print_warning(f"Error deleting info.json '{info_json_path}': {e_del}", 4)
 
                                 downloaded_video_ids.add(video_id) # Add to skip list
                                 keyword_frequency[keyword] = keyword_frequency.get(keyword, 0) + 1 # Increment discovery score

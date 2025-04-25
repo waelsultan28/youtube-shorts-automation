@@ -118,6 +118,8 @@ ERROR_LOG_FILE = os.path.join(script_directory, "upload_error_log.txt")
 DEBUG_RECORDING_FOLDER = os.path.join(script_directory, "debug_recordings")
 PERFORMANCE_METRICS_FILE = os.path.join(script_directory, "performance_metrics.json") # For tracking performance metrics
 UPLOADER_ANALYSIS_LOG = os.path.join(script_directory, "uploader_analysis_log.txt") # For AI-generated analysis
+UPLOAD_CORRELATION_CACHE_FILENAME = "upload_correlation_cache.json" # For tracking correlation between video index, discovery keyword, and YouTube Video ID
+UPLOAD_CORRELATION_CACHE_PATH = os.path.join(script_directory, UPLOAD_CORRELATION_CACHE_FILENAME)
 # --- End Path Definitions ---
 
 # --- Error Types and Analysis Constants ---
@@ -259,6 +261,72 @@ def update_error_metrics(error_type, step, video_index, error_message, xpath="")
         save_performance_metrics(metrics)
     except Exception as e:
         print(f"{Fore.RED}Error updating error metrics: {e}")
+
+def load_correlation_cache():
+    """Loads the upload correlation cache from JSON file."""
+    default_cache = []
+    try:
+        if os.path.exists(UPLOAD_CORRELATION_CACHE_PATH):
+            with open(UPLOAD_CORRELATION_CACHE_PATH, "r", encoding="utf-8") as f:
+                content = f.read()
+                if not content:
+                    return default_cache
+                cache = json.loads(content)
+                if not isinstance(cache, list):
+                    print_warning(f"Correlation cache file '{UPLOAD_CORRELATION_CACHE_FILENAME}' has invalid format. Returning empty cache.")
+                    return default_cache
+                return cache
+        else:
+            print_info(f"Correlation cache file '{UPLOAD_CORRELATION_CACHE_FILENAME}' not found. Creating new cache.")
+            return default_cache
+    except json.JSONDecodeError:
+        print_error(f"Error decoding JSON from correlation cache file '{UPLOAD_CORRELATION_CACHE_FILENAME}'. Returning empty cache.")
+        return default_cache
+    except Exception as e:
+        print_error(f"Error loading correlation cache: {e}")
+        return default_cache
+
+def save_correlation_cache(cache_data):
+    """Saves the upload correlation cache to JSON file."""
+    try:
+        with open(UPLOAD_CORRELATION_CACHE_PATH, "w", encoding="utf-8") as f:
+            json.dump(cache_data, f, ensure_ascii=False, indent=4)
+        print_info(f"Saved correlation cache with {len(cache_data)} entries.")
+    except Exception as e:
+        print_error(f"Error saving correlation cache: {e}")
+
+def add_to_correlation_cache(video_index_str, discovery_keyword, youtube_video_id):
+    """Adds a new entry to the correlation cache.
+
+    Args:
+        video_index_str: The video index string (e.g., "video1")
+        discovery_keyword: The keyword used to discover/download the video
+        youtube_video_id: The YouTube video ID after upload
+    """
+    if not youtube_video_id or not discovery_keyword:
+        print_warning(f"Missing required data for correlation cache: YT ID: {youtube_video_id}, Keyword: {discovery_keyword}")
+        return
+
+    try:
+        # Load existing cache
+        cache = load_correlation_cache()
+
+        # Create new entry
+        new_entry = {
+            "video_index": video_index_str,
+            "discovery_keyword": discovery_keyword,
+            "youtube_video_id": youtube_video_id,
+            "added_timestamp": datetime.now().isoformat()
+        }
+
+        # Add to cache
+        cache.append(new_entry)
+
+        # Save updated cache
+        save_correlation_cache(cache)
+        print_success(f"Added correlation data for {video_index_str} with keyword '{discovery_keyword}' and YT ID: {youtube_video_id}")
+    except Exception as e:
+        print_error(f"Error adding to correlation cache: {e}")
 
 def analyze_upload_errors_with_gemini():
     """Analyzes upload errors using Gemini AI and generates suggestions for improvement.
@@ -551,6 +619,53 @@ def update_excel_data(downloaded_sheet: Worksheet, uploaded_sheet: Worksheet, vi
         uploaded_sheet.append(row_data)
         print_success(f"Appended entry to 'Uploaded' sheet (Status: {publish_status}, Schedule: {schedule_time_str}, YT ID: {youtube_video_id if youtube_video_id else 'N/A'}).", indent=2)
     except Exception as e: msg = f"Error updating Excel data in memory for video{video_index_str}: {e}"; print_error(msg, indent=1, include_traceback=True)
+
+
+# --- Correlation Cache Functions ---
+def load_correlation_cache():
+    """Loads the upload correlation cache from JSON file."""
+    default_cache = [] # List of dictionaries
+    if not os.path.exists(UPLOAD_CORRELATION_CACHE_PATH):
+        return default_cache
+    try:
+        with open(UPLOAD_CORRELATION_CACHE_PATH, "r", encoding="utf-8") as f:
+            content = f.read()
+            if not content: return default_cache # Handle empty file
+            cache = json.loads(content)
+            if not isinstance(cache, list):
+                 print_warning(f"Correlation cache file '{UPLOAD_CORRELATION_CACHE_FILENAME}' has invalid format (expected list). Returning empty cache.")
+                 return default_cache
+            return cache
+    except json.JSONDecodeError:
+        print_error(f"Error decoding JSON from correlation cache file '{UPLOAD_CORRELATION_CACHE_FILENAME}'. Returning empty cache.")
+        return default_cache
+    except Exception as e:
+        print_error(f"Error loading correlation cache: {e}", include_traceback=True)
+        return default_cache
+
+def save_correlation_cache(cache_data):
+    """Saves the upload correlation cache to JSON file."""
+    try:
+        with open(UPLOAD_CORRELATION_CACHE_PATH, "w", encoding="utf-8") as f:
+            json.dump(cache_data, f, ensure_ascii=False, indent=4)
+    except Exception as e:
+        print_error(f"Error saving correlation cache: {e}", include_traceback=True)
+
+def add_to_correlation_cache(video_index_str: str, discovery_keyword: Optional[str], youtube_video_id: str):
+    """Adds a new entry to the correlation cache."""
+    if not youtube_video_id: # Don't add if upload failed
+        return
+    cache = load_correlation_cache()
+    new_entry = {
+        "video_index": video_index_str,
+        "discovery_keyword": discovery_keyword if discovery_keyword else "Unknown", # Handle missing keyword
+        "youtube_video_id": youtube_video_id,
+        "added_timestamp": datetime.now().isoformat() # Timestamp for cleanup
+    }
+    cache.append(new_entry)
+    save_correlation_cache(cache)
+    print_info(f"Added {video_index_str} (YT ID: {youtube_video_id}) to correlation cache.", indent=2)
+# --- End Correlation Cache Functions ---
 
 
 def check_and_update_scheduled(uploaded_sheet: Worksheet) -> bool:
@@ -1894,6 +2009,16 @@ def main():
                 status = "Published" if publish_this_video_now else "Scheduled"
                 # Pass target_schedule_time to Excel update function only if it was scheduled
                 actual_schedule_time_for_excel = target_schedule_time if not publish_this_video_now else None
+
+                # --- Add correlation data BEFORE deleting files ---
+                discovery_keyword_for_cache = metadata.get("discovery_keyword")  # Get keyword before potential deletion
+                add_to_correlation_cache(
+                    video_index_str=f"video{video_index}",
+                    discovery_keyword=discovery_keyword_for_cache,
+                    youtube_video_id=captured_youtube_video_id  # Use the ID returned by upload_video
+                )
+
+                # Update Excel data
                 update_excel_data(
                     downloaded_sheet, uploaded_sheet, video_index,
                     metadata.get('optimized_title', f'Video {video_index}'),
@@ -1902,6 +2027,8 @@ def main():
                     status,
                     youtube_video_id=captured_youtube_video_id  # Pass the captured YouTube Video ID
                 )
+
+                # Now delete the files (after correlation data has been saved)
                 delete_uploaded_files(video_file_path, metadata_path)
 
                 # Update last_schedule_time correctly
