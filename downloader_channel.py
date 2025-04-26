@@ -890,62 +890,151 @@ def load_or_create_excel():
     """Loads Excel, checks/creates sheets, corrects headers, loads previous videos."""
     previously_downloaded_videos = set()
     wb = None; downloaded_sheet = None; uploaded_sheet = None # Initialize
-    save_needed = False # Flag to save only if changes were made
 
-    if not os.path.exists(excel_file):
-        print(f"Excel file not found '{excel_file}'. Creating.")
-        wb = Workbook(); save_needed = True
-        downloaded_sheet = wb.active; downloaded_sheet.title = DOWNLOADED_SHEET_NAME
-        downloaded_sheet.append(EXPECTED_DOWNLOADED_HEADERS)
-        uploaded_sheet = wb.create_sheet(title=UPLOADED_SHEET_NAME)
-        uploaded_sheet.append(EXPECTED_UPLOADED_HEADERS)
+    # Try to import excel_utils module
+    try:
+        import excel_utils
+        excel_utils_available = True
+        print_info("Using excel_utils module for robust Excel handling")
+    except ImportError:
+        excel_utils_available = False
+        print_warning("excel_utils module not available. Using fallback Excel handling.")
+
+    # Define sheet configuration
+    sheets_config = {
+        DOWNLOADED_SHEET_NAME: EXPECTED_DOWNLOADED_HEADERS,
+        UPLOADED_SHEET_NAME: EXPECTED_UPLOADED_HEADERS
+    }
+
+    if excel_utils_available:
+        # Use the excel_utils module for robust Excel handling
+        wb, sheets, save_needed = excel_utils.load_or_create_excel(excel_file, sheets_config)
+
+        if not wb:
+            log_error(f"FATAL: Failed to load or create Excel file: {excel_file}")
+            raise Exception(f"Failed to load or create Excel file: {excel_file}")
+
+        downloaded_sheet = sheets.get(DOWNLOADED_SHEET_NAME)
+        uploaded_sheet = sheets.get(UPLOADED_SHEET_NAME)
+
+        # Check/Correct headers for Downloaded Sheet
+        if downloaded_sheet:
+            current_headers = [str(c.value) if c.value is not None else '' for c in downloaded_sheet[1]]
+            if tuple(current_headers) != tuple(EXPECTED_DOWNLOADED_HEADERS):
+                log_error(f"Correcting headers in '{DOWNLOADED_SHEET_NAME}'.")
+                print(f"Warning: Correcting headers in '{DOWNLOADED_SHEET_NAME}'.")
+                for i, h in enumerate(EXPECTED_DOWNLOADED_HEADERS):
+                    downloaded_sheet.cell(1, i + 1, h)
+                save_needed = True
+
+        # Check/Correct headers for Uploaded Sheet
+        if uploaded_sheet:
+            current_headers = [str(c.value) if c.value is not None else '' for c in uploaded_sheet[1]]
+            if tuple(current_headers) != tuple(EXPECTED_UPLOADED_HEADERS):
+                log_error(f"Correcting headers in '{UPLOADED_SHEET_NAME}'.")
+                print(f"Warning: Correcting headers in '{UPLOADED_SHEET_NAME}'.")
+                for i, h in enumerate(EXPECTED_UPLOADED_HEADERS):
+                    uploaded_sheet.cell(1, i + 1, h)
+                save_needed = True
+
+        # Load previous videos (only if downloaded_sheet is valid)
+        if downloaded_sheet:
+            print("Loading previous Title/Uploader pairs...")
+            max_col = max(ORIGINAL_TITLE_COL_IDX, UPLOADER_COL_IDX)
+            for row in downloaded_sheet.iter_rows(min_row=2, max_col=max_col, values_only=True):
+                if len(row) >= max_col:
+                    title, uploader = row[ORIGINAL_TITLE_COL_IDX - 1], row[UPLOADER_COL_IDX - 1]
+                    if isinstance(title, str) and title.strip() and isinstance(uploader, str) and uploader.strip():
+                         previously_downloaded_videos.add((title.strip(), uploader.strip()))
+            print(f"Loaded {len(previously_downloaded_videos)} previous Title/Uploader pairs.")
+        else:
+            log_error("Could not load previous videos: Downloaded sheet object invalid.")
+
+        # Save if needed using robust save mechanism
+        if save_needed:
+            if not excel_utils.safe_save_workbook(wb, excel_file, close_excel=True, create_backup=True):
+                log_warning(f"Could not save structural changes to Excel. Will try again later.")
+
+        print_success("Excel loaded successfully.")
+        return wb, downloaded_sheet, uploaded_sheet, previously_downloaded_videos
+
     else:
-        print(f"Loading existing Excel: {excel_file}")
-        try:
-            wb = load_workbook(excel_file)
-            # Check/Correct Downloaded Sheet
-            if DOWNLOADED_SHEET_NAME not in wb.sheetnames:
-                log_error(f"Sheet '{DOWNLOADED_SHEET_NAME}' missing. Creating."); downloaded_sheet = wb.create_sheet(DOWNLOADED_SHEET_NAME, 0); downloaded_sheet.append(EXPECTED_DOWNLOADED_HEADERS); save_needed = True
-            else:
-                downloaded_sheet = wb[DOWNLOADED_SHEET_NAME]; current_headers = [str(c.value) if c.value is not None else '' for c in downloaded_sheet[1]]
-                if tuple(current_headers) != tuple(EXPECTED_DOWNLOADED_HEADERS):
-                    log_error(f"Correcting headers in '{DOWNLOADED_SHEET_NAME}'."); print(f"Warning: Correcting headers in '{DOWNLOADED_SHEET_NAME}'.")
-                    for i, h in enumerate(EXPECTED_DOWNLOADED_HEADERS): downloaded_sheet.cell(1, i + 1, h); save_needed = True
-            # Check/Correct Uploaded Sheet
-            if UPLOADED_SHEET_NAME not in wb.sheetnames:
-                log_error(f"Sheet '{UPLOADED_SHEET_NAME}' missing. Creating."); uploaded_sheet = wb.create_sheet(UPLOADED_SHEET_NAME); uploaded_sheet.append(EXPECTED_UPLOADED_HEADERS); save_needed = True
-            else:
-                uploaded_sheet = wb[UPLOADED_SHEET_NAME]; current_headers = [str(c.value) if c.value is not None else '' for c in uploaded_sheet[1]]
-                if tuple(current_headers) != tuple(EXPECTED_UPLOADED_HEADERS):
-                    log_error(f"Correcting headers in '{UPLOADED_SHEET_NAME}'."); print(f"Warning: Correcting headers in '{UPLOADED_SHEET_NAME}'.")
-                    for i, h in enumerate(EXPECTED_UPLOADED_HEADERS): uploaded_sheet.cell(1, i + 1, h); save_needed = True
+        # Fallback to original implementation if excel_utils is not available
+        save_needed = False # Flag to save only if changes were made
 
-            # Load previous videos (only if downloaded_sheet is valid)
-            if downloaded_sheet:
-                print("Loading previous Title/Uploader pairs...")
-                max_col = max(ORIGINAL_TITLE_COL_IDX, UPLOADER_COL_IDX)
-                for row in downloaded_sheet.iter_rows(min_row=2, max_col=max_col, values_only=True):
-                    if len(row) >= max_col:
-                        title, uploader = row[ORIGINAL_TITLE_COL_IDX - 1], row[UPLOADER_COL_IDX - 1]
-                        if isinstance(title, str) and title.strip() and isinstance(uploader, str) and uploader.strip():
-                             previously_downloaded_videos.add((title.strip(), uploader.strip()))
-                print(f"Loaded {len(previously_downloaded_videos)} previous Title/Uploader pairs.")
-            else: log_error("Could not load previous videos: Downloaded sheet object invalid.")
+        if not os.path.exists(excel_file):
+            print(f"Excel file not found '{excel_file}'. Creating.")
+            wb = Workbook(); save_needed = True
+            downloaded_sheet = wb.active; downloaded_sheet.title = DOWNLOADED_SHEET_NAME
+            downloaded_sheet.append(EXPECTED_DOWNLOADED_HEADERS)
+            uploaded_sheet = wb.create_sheet(title=UPLOADED_SHEET_NAME)
+            uploaded_sheet.append(EXPECTED_UPLOADED_HEADERS)
+        else:
+            print(f"Loading existing Excel: {excel_file}")
+            try:
+                wb = load_workbook(excel_file)
+                # Check/Correct Downloaded Sheet
+                if DOWNLOADED_SHEET_NAME not in wb.sheetnames:
+                    log_error(f"Sheet '{DOWNLOADED_SHEET_NAME}' missing. Creating."); downloaded_sheet = wb.create_sheet(DOWNLOADED_SHEET_NAME, 0); downloaded_sheet.append(EXPECTED_DOWNLOADED_HEADERS); save_needed = True
+                else:
+                    downloaded_sheet = wb[DOWNLOADED_SHEET_NAME]; current_headers = [str(c.value) if c.value is not None else '' for c in downloaded_sheet[1]]
+                    if tuple(current_headers) != tuple(EXPECTED_DOWNLOADED_HEADERS):
+                        log_error(f"Correcting headers in '{DOWNLOADED_SHEET_NAME}'."); print(f"Warning: Correcting headers in '{DOWNLOADED_SHEET_NAME}'.")
+                        for i, h in enumerate(EXPECTED_DOWNLOADED_HEADERS): downloaded_sheet.cell(1, i + 1, h); save_needed = True
+                # Check/Correct Uploaded Sheet
+                if UPLOADED_SHEET_NAME not in wb.sheetnames:
+                    log_error(f"Sheet '{UPLOADED_SHEET_NAME}' missing. Creating."); uploaded_sheet = wb.create_sheet(UPLOADED_SHEET_NAME); uploaded_sheet.append(EXPECTED_UPLOADED_HEADERS); save_needed = True
+                else:
+                    uploaded_sheet = wb[UPLOADED_SHEET_NAME]; current_headers = [str(c.value) if c.value is not None else '' for c in uploaded_sheet[1]]
+                    if tuple(current_headers) != tuple(EXPECTED_UPLOADED_HEADERS):
+                        log_error(f"Correcting headers in '{UPLOADED_SHEET_NAME}'."); print(f"Warning: Correcting headers in '{UPLOADED_SHEET_NAME}'.")
+                        for i, h in enumerate(EXPECTED_UPLOADED_HEADERS): uploaded_sheet.cell(1, i + 1, h); save_needed = True
 
-            print("Excel loaded.")
-        except Exception as e:
-            log_error(f"FATAL: Error loading/validating Excel '{excel_file}': {e}"); traceback.print_exc(); raise
+                # Load previous videos (only if downloaded_sheet is valid)
+                if downloaded_sheet:
+                    print("Loading previous Title/Uploader pairs...")
+                    max_col = max(ORIGINAL_TITLE_COL_IDX, UPLOADER_COL_IDX)
+                    for row in downloaded_sheet.iter_rows(min_row=2, max_col=max_col, values_only=True):
+                        if len(row) >= max_col:
+                            title, uploader = row[ORIGINAL_TITLE_COL_IDX - 1], row[UPLOADER_COL_IDX - 1]
+                            if isinstance(title, str) and title.strip() and isinstance(uploader, str) and uploader.strip():
+                                 previously_downloaded_videos.add((title.strip(), uploader.strip()))
+                    print(f"Loaded {len(previously_downloaded_videos)} previous Title/Uploader pairs.")
+                else: log_error("Could not load previous videos: Downloaded sheet object invalid.")
 
-    # Save workbook only if changes were made during loading/creation/correction
-    if save_needed:
-        try:
-            wb.save(excel_file)
-            print(f"Saved structural changes to Excel file: {excel_file}")
-        except Exception as e:
-            log_error(f"Error saving structural changes to Excel: {e}")
-            print(f"Error saving structural changes to Excel: {e}")
+                print("Excel loaded.")
+            except Exception as e:
+                log_error(f"FATAL: Error loading/validating Excel '{excel_file}': {e}"); traceback.print_exc(); raise
 
-    return wb, downloaded_sheet, uploaded_sheet, previously_downloaded_videos
+        # Save workbook only if changes were made during loading/creation/correction
+        if save_needed:
+            try:
+                # Try to save with a simple retry mechanism
+                max_retries = 3
+                for attempt in range(max_retries):
+                    try:
+                        wb.save(excel_file)
+                        print(f"Saved structural changes to Excel file: {excel_file}")
+                        break
+                    except PermissionError as pe:
+                        if attempt < max_retries - 1:
+                            print(f"PermissionError saving Excel (attempt {attempt+1}/{max_retries}): {pe}")
+                            print(f"Retrying in 2 seconds...")
+                            time.sleep(2)
+                        else:
+                            raise
+            except Exception as e:
+                log_error(f"Error saving structural changes to Excel: {e}")
+                print(f"Error saving structural changes to Excel: {e}")
+                # Try to save to a backup file
+                try:
+                    backup_path = f"{excel_file}.backup_{datetime.now():%Y%m%d_%H%M%S}.xlsx"
+                    wb.save(backup_path)
+                    print(f"Saved backup Excel file: {backup_path}")
+                except Exception as be:
+                    log_error(f"Failed to save backup Excel file: {be}")
+
+        return wb, downloaded_sheet, uploaded_sheet, previously_downloaded_videos
 
 
 def get_last_video_index(downloaded_sheet: Worksheet) -> int:
@@ -1436,26 +1525,106 @@ def main():
         if wb and downloaded_sheet and downloaded_video_data:
             print(f"Attempting final Excel update ({len(downloaded_video_data)} new)...")
             try:
-                 def get_sort_key(item):
-                     try: return int(item[3]) if len(item)>3 and item[3] is not None else 0;
-                     except: return 0
-                 print("  Sorting data..."); downloaded_video_data.sort(key=get_sort_key, reverse=True);
-                 print("  Appending rows...");
-                 for row_data in downloaded_video_data:
-                      if len(row_data) == len(EXPECTED_DOWNLOADED_HEADERS): downloaded_sheet.append(row_data)
-                      else: log_error(f"Skipping Excel row, wrong count: {row_data}")
-                 print("  Saving workbook..."); wb.save(excel_file); print("Excel saved.")
-            except Exception as e:
-                 error_message = f"CRITICAL: Error saving Excel: {e}"; print(error_message); log_error(error_message); traceback.print_exc(); log_error(f"Excel save Traceback:\n{traceback.format_exc()}")
-                 backup_file = os.path.join(script_directory, f"excel_backup_data_{datetime.now():%Y%m%d_%H%M%S}.json")
-                 print(f"Attempting backup to {backup_file}...");
-                 try:
-                     with open(backup_file, "w", encoding='utf-8') as bf: json.dump(downloaded_video_data, bf, indent=4); log_error(f"Saved backup {backup_file}."); print("Backup saved.")
-                 except Exception as be:
-                     log_error(f"CRITICAL: Failed backup save: {be}")
-                     print(f"CRITICAL: Failed backup save: {be}")
+                # Try to import excel_utils module
+                try:
+                    import excel_utils
+                    excel_utils_available = True
+                    print_info("Using excel_utils module for robust Excel saving")
+                except ImportError:
+                    excel_utils_available = False
+                    print_warning("excel_utils module not available. Using fallback Excel saving.")
 
-        elif not downloaded_video_data: print("\nNo new videos processed. No Excel data to save.")
+                # Sort the data by view count
+                def get_sort_key(item):
+                    try: return int(item[3]) if len(item)>3 and item[3] is not None else 0;
+                    except: return 0
+                print("  Sorting data...")
+                downloaded_video_data.sort(key=get_sort_key, reverse=True)
+
+                # Append rows to the sheet
+                print("  Appending rows...")
+                for row_data in downloaded_video_data:
+                    if len(row_data) == len(EXPECTED_DOWNLOADED_HEADERS):
+                        downloaded_sheet.append(row_data)
+                    else:
+                        log_error(f"Skipping Excel row, wrong count: {row_data}")
+
+                # Save the workbook using excel_utils if available
+                print("  Saving workbook...")
+                if excel_utils_available:
+                    # Extract workbook data for backup in case save fails
+                    def extract_data(wb):
+                        data = {}
+                        for sheet_name in wb.sheetnames:
+                            sheet = wb[sheet_name]
+                            data[sheet_name] = []
+                            for row in sheet.iter_rows(values_only=True):
+                                data[sheet_name].append(list(row))
+                        return data
+
+                    # Use the robust save mechanism
+                    if excel_utils.save_workbook_with_fallback(wb, excel_file, extract_data):
+                        print_success("Excel saved successfully using excel_utils.")
+                    else:
+                        # If all save methods failed, create a JSON backup
+                        backup_file = os.path.join(script_directory, f"excel_backup_data_{datetime.now():%Y%m%d_%H%M%S}.json")
+                        print(f"All Excel save methods failed. Creating JSON backup: {backup_file}")
+                        try:
+                            with open(backup_file, "w", encoding='utf-8') as bf:
+                                json.dump(downloaded_video_data, bf, indent=4)
+                                log_error(f"Saved backup {backup_file}.")
+                                print("Backup saved.")
+                        except Exception as be:
+                            log_error(f"CRITICAL: Failed backup save: {be}")
+                            print(f"CRITICAL: Failed backup save: {be}")
+                else:
+                    # Fallback to original save mechanism with simple retry
+                    max_retries = 3
+                    for attempt in range(max_retries):
+                        try:
+                            wb.save(excel_file)
+                            print_success(f"Excel saved successfully (attempt {attempt+1}).")
+                            break
+                        except PermissionError as pe:
+                            if attempt < max_retries - 1:
+                                print_warning(f"PermissionError saving Excel (attempt {attempt+1}/{max_retries}): {pe}")
+                                print_info(f"Retrying in 2 seconds...")
+                                time.sleep(2)
+                            else:
+                                raise
+                    else:
+                        # If all retries failed, create a backup file
+                        backup_file = os.path.join(script_directory, f"excel_backup_data_{datetime.now():%Y%m%d_%H%M%S}.json")
+                        print(f"All Excel save attempts failed. Creating JSON backup: {backup_file}")
+                        try:
+                            with open(backup_file, "w", encoding='utf-8') as bf:
+                                json.dump(downloaded_video_data, bf, indent=4)
+                                log_error(f"Saved backup {backup_file}.")
+                                print("Backup saved.")
+                        except Exception as be:
+                            log_error(f"CRITICAL: Failed backup save: {be}")
+                            print(f"CRITICAL: Failed backup save: {be}")
+            except Exception as e:
+                error_message = f"CRITICAL: Error saving Excel: {e}"
+                print(error_message)
+                log_error(error_message)
+                traceback.print_exc()
+                log_error(f"Excel save Traceback:\n{traceback.format_exc()}")
+
+                # Create a JSON backup as last resort
+                backup_file = os.path.join(script_directory, f"excel_backup_data_{datetime.now():%Y%m%d_%H%M%S}.json")
+                print(f"Attempting backup to {backup_file}...")
+                try:
+                    with open(backup_file, "w", encoding='utf-8') as bf:
+                        json.dump(downloaded_video_data, bf, indent=4)
+                        log_error(f"Saved backup {backup_file}.")
+                        print("Backup saved.")
+                except Exception as be:
+                    log_error(f"CRITICAL: Failed backup save: {be}")
+                    print(f"CRITICAL: Failed backup save: {be}")
+
+        elif not downloaded_video_data:
+            print("\nNo new videos processed. No Excel data to save.")
 
         # Save Caches
         print("\nSaving final caches...")
