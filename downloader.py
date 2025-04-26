@@ -1202,6 +1202,12 @@ if __name__ == "__main__":
         total_keywords_updated = 0
         if keyword_performance_feedback:
             for keyword, performance_list in keyword_performance_feedback.items():
+                # --- Skip channel URLs (from channel-based downloader) ---
+                if "youtube.com" in keyword.lower() or "youtu.be" in keyword.lower():
+                    print_info(f"Skipping score update for channel URL source: {keyword}", 1)
+                    continue
+                # --- End channel URL check ---
+
                 cumulative_perf_score = 0; num_videos = 0
                 for perf_data in performance_list:
                     video_score = calculate_performance_score(perf_data.get("views", 0), perf_data.get("likes", 0), perf_data.get("comments", 0))
