@@ -1371,13 +1371,7 @@ if __name__ == "__main__":
                                 print_info("Saving metadata JSON...", 3); saved_metadata = save_metadata(entry, video_counter, seo_metadata, METADATA_FOLDER, current_keyword=keyword); print_success("Metadata saved.", 4)
                                 print_info("Adding entry to Excel (in memory)...", 3); downloaded_sheet.append([ f"video{video_counter}", saved_metadata["optimized_title"], datetime.now().strftime("%Y-%m-%d %H:%M:%S"), saved_metadata["view_count"], saved_metadata["uploader"], saved_metadata["original_title"] ]); print_success("Entry added.", 4)
 
-                                # Cleanup info.json immediately after saving metadata
-                                if os.path.exists(info_json_path):
-                                    try:
-                                        os.remove(info_json_path)
-                                        print_info(f"Deleted info.json file after saving metadata", 4)
-                                    except OSError as e_del:
-                                        print_warning(f"Error deleting info.json '{info_json_path}': {e_del}", 4)
+                                # NOTE: We no longer delete info.json here - it will be deleted after tag extraction
 
                                 downloaded_video_ids.add(video_id) # Add to skip list
                                 keyword_frequency[keyword] = keyword_frequency.get(keyword, 0) + 1 # Increment discovery score
