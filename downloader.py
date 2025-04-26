@@ -693,57 +693,61 @@ def improve_metadata_prompt(error_metrics):
 
 # --- Category Suggestion Function ---
 def get_suggested_category(title: str, description: str):
-    """Asks Gemini for the most appropriate YouTube category."""
+    """Asks Gemini for the most appropriate YouTube category from a predefined list."""
     if not title or not description:
         print_warning("Cannot suggest category: Title or Description is empty.", 2)
         return None
 
-    # Simple list for basic validation (can be expanded)
-    # Source: https://developers.google.com/youtube/v3/docs/videoCategories/list (Common ones)
+    # --- Keep the list here for validation ---
     KNOWN_CATEGORIES = [
         "Film & Animation", "Autos & Vehicles", "Music", "Pets & Animals",
-        "Sports", "Travel & Events", "Gaming", "People & Blogs", "Comedy",
-        "Entertainment", "News & Politics", "Howto & Style", "Education",
-        "Science & Technology", "Nonprofits & Activism", "Movies", "Shows"
+        "Sports", "Travel & Events", "Gaming", "People & Blogs",
+        "Comedy", "Entertainment", "News & Politics", "Howto & Style",
+        "Education", "Science & Technology", "Nonprofits & Activism"
+        # Removed "Movies", "Shows" as they are less common for Shorts uploads via Studio
     ]
     KNOWN_CATEGORIES_LOWER = {cat.lower() for cat in KNOWN_CATEGORIES}
 
+    # --- MODIFY THE PROMPT ---
+    valid_categories_string = ", ".join([f'"{cat}"' for cat in KNOWN_CATEGORIES]) # Create quoted list for prompt
+
     prompt = f"""
-    Based on the following YouTube Shorts video Title and Description:
+    Analyze the following YouTube Shorts video Title and Description:
 
     Title: {title}
-    Description: {description[:1000]} # Limit description length for prompt
+    Description: {description[:1000]} # Limit description length
 
-    What is the single most appropriate YouTube Video Category Name for this content?
-    Choose ONE from the standard YouTube categories (like Gaming, Entertainment, Music, Howto & Style, Education, etc.).
-    Output ONLY the category name and nothing else. For example: Gaming
+    Select the single BEST matching official YouTube Video Category for this content.
+    You MUST choose EXACTLY ONE category name from this official list:
+    {valid_categories_string}
+
+    Output ONLY the chosen category name from the list, with the exact capitalization shown in the list, and nothing else.
+    For example, if the content is about gaming, output: Gaming
+    If it's about fitness exercises, the best fit from the list might be "Howto & Style" or "Sports". Choose the single most appropriate one FROM THE LIST PROVIDED.
     """
+
     try:
-        print_info("Requesting category suggestion from Gemini...", 3)
-        # Using flash for potentially faster/cheaper category suggestion
+        print_info("Requesting category suggestion (with explicit list)...", 3)
         model = genai.GenerativeModel("gemini-1.5-flash")
         response = model.generate_content(prompt)
         suggested_cat_raw = response.text.strip()
 
-        # Basic validation: Check if it's non-empty and somewhat resembles known categories
-        if suggested_cat_raw and suggested_cat_raw.lower() in KNOWN_CATEGORIES_LOWER:
-            # Find the correctly capitalized version
-            for known_cat in KNOWN_CATEGORIES:
-                if known_cat.lower() == suggested_cat_raw.lower():
-                    print_success(f"Suggested category: {known_cat}", 3)
-                    return known_cat
-            # Should not happen if lower check passed, but fallback just in case
-            print_warning(f"Could not find exact capitalization for suggested category '{suggested_cat_raw}'. Using it as is.", 3)
+        # --- Keep the validation logic, but it should pass more often now ---
+        if suggested_cat_raw and suggested_cat_raw in KNOWN_CATEGORIES: # Check against the original list directly now
+            print_success(f"Suggested category: {suggested_cat_raw}", 3)
             return suggested_cat_raw
         elif suggested_cat_raw:
-             print_warning(f"Gemini suggested an unknown or unexpected category: '{suggested_cat_raw}'. Ignoring suggestion.", 3)
-             return None # Return None if it's not a recognized category name
+            # This might still happen if Gemini hallucinates or ignores instructions
+            print_warning(f"Gemini suggested a category NOT in the provided list: '{suggested_cat_raw}'. Ignoring.", 3)
+            # Log the failed suggestion for debugging
+            print_error(f"Category Suggestion Mismatch: Gemini suggested '{suggested_cat_raw}' which is not in the allowed list based on Title: '{title}'")
+            return None
         else:
             print_warning("Gemini returned an empty category suggestion.", 3)
             return None
-
     except Exception as e:
         print_error(f"Error getting category suggestion: {e}", 3)
+        print_error(f"Gemini Category Suggestion Error: {e} for Title: '{title}'") # Log error
         return None
 
 # --- Performance Metrics & Tuning Suggestions (Kept from downloader - B.py) ---
