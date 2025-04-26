@@ -1018,27 +1018,95 @@ if __name__ == "__main__":
 
         # --- Load or Create Excel Workbook ---
         excel_loaded_ok = False
+
+        # Try to import excel_utils module
         try:
-            if not os.path.exists(EXCEL_FILE_PATH):
-                wb = Workbook()
-                downloaded_sheet = wb.active; downloaded_sheet.title = DOWNLOADED_SHEET_NAME
-                downloaded_sheet.append(["Video Index", "Optimized Title", "Downloaded Date", "Views", "Uploader", "Original Title"]) # Corrected header
-                uploaded_sheet = wb.create_sheet(title=UPLOADED_SHEET_NAME)
-                uploaded_sheet.append(["Video Index", "Optimized Title", "YouTube Video ID", "Upload Timestamp", "Scheduled Time", "Publish Status"]) # Corrected header
-                wb.save(EXCEL_FILE_PATH)
-                print_success(f"Created new Excel file: {EXCEL_FILENAME}")
+            import excel_utils
+            excel_utils_available = True
+            print_info("Using excel_utils module for robust Excel handling")
+        except ImportError:
+            excel_utils_available = False
+            print_warning("excel_utils module not available. Using fallback Excel handling.")
+
+        # Define sheet configuration
+        sheets_config = {
+            DOWNLOADED_SHEET_NAME: ["Video Index", "Optimized Title", "Downloaded Date", "Views", "Uploader", "Original Title"],
+            UPLOADED_SHEET_NAME: ["Video Index", "Optimized Title", "YouTube Video ID", "Upload Timestamp", "Scheduled Time", "Publish Status"]
+        }
+
+        if excel_utils_available:
+            # Use the excel_utils module for robust Excel handling
+            try:
+                wb, sheets, save_needed = excel_utils.load_or_create_excel(EXCEL_FILE_PATH, sheets_config)
+
+                if not wb:
+                    print_fatal(f"Failed to load or create Excel file: {EXCEL_FILE_PATH}")
+                    exit(1)
+
+                downloaded_sheet = sheets.get(DOWNLOADED_SHEET_NAME)
+                uploaded_sheet = sheets.get(UPLOADED_SHEET_NAME)
+
+                # Save if needed using robust save mechanism
+                if save_needed:
+                    if not excel_utils.safe_save_workbook(wb, EXCEL_FILE_PATH, close_excel=True, create_backup=True):
+                        print_warning(f"Could not save structural changes to Excel. Will try again later.")
+
+                print_success(f"Excel loaded successfully using excel_utils.")
                 excel_loaded_ok = True
-            else:
-                wb = load_workbook(EXCEL_FILE_PATH)
-                # Ensure sheets exist and headers are correct
-                if DOWNLOADED_SHEET_NAME not in wb.sheetnames: downloaded_sheet = wb.create_sheet(title=DOWNLOADED_SHEET_NAME); downloaded_sheet.append(["Video Index", "Optimized Title", "Downloaded Date", "Views", "Uploader", "Original Title"]); print_warning("Created missing 'Downloaded' sheet.")
-                else: downloaded_sheet = wb[DOWNLOADED_SHEET_NAME] # Check/fix header if needed
-                if UPLOADED_SHEET_NAME not in wb.sheetnames: uploaded_sheet = wb.create_sheet(title=UPLOADED_SHEET_NAME); uploaded_sheet.append(["Video Index", "Optimized Title", "YouTube Video ID", "Upload Timestamp", "Scheduled Time", "Publish Status"]); print_warning("Created missing 'Uploaded' sheet.")
-                else: uploaded_sheet = wb[UPLOADED_SHEET_NAME] # Check/fix header if needed
-                print_success(f"Loaded Excel file: {EXCEL_FILENAME}")
-                excel_loaded_ok = True
-        except Exception as e: print_fatal(f"Error handling Excel file {EXCEL_FILE_PATH}: {e}")
-        if not excel_loaded_ok: exit(1) # Should be caught by fatal, but safety check
+            except Exception as e:
+                print_error(f"Error using excel_utils: {e}", include_traceback=True)
+                print_warning("Falling back to standard Excel handling.")
+                excel_utils_available = False  # Force fallback
+
+        # Fallback to original implementation if excel_utils is not available or failed
+        if not excel_utils_available:
+            try:
+                if not os.path.exists(EXCEL_FILE_PATH):
+                    wb = Workbook()
+                    downloaded_sheet = wb.active; downloaded_sheet.title = DOWNLOADED_SHEET_NAME
+                    downloaded_sheet.append(["Video Index", "Optimized Title", "Downloaded Date", "Views", "Uploader", "Original Title"]) # Corrected header
+                    uploaded_sheet = wb.create_sheet(title=UPLOADED_SHEET_NAME)
+                    uploaded_sheet.append(["Video Index", "Optimized Title", "YouTube Video ID", "Upload Timestamp", "Scheduled Time", "Publish Status"]) # Corrected header
+
+                    # Try to save with a simple retry mechanism
+                    max_retries = 3
+                    for attempt in range(max_retries):
+                        try:
+                            wb.save(EXCEL_FILE_PATH)
+                            print_success(f"Created new Excel file: {EXCEL_FILENAME}")
+                            break
+                        except PermissionError as pe:
+                            if attempt < max_retries - 1:
+                                print_warning(f"PermissionError saving Excel (attempt {attempt+1}/{max_retries}): {pe}")
+                                print_info(f"Retrying in 2 seconds...")
+                                time.sleep(2)
+                            else:
+                                raise
+                    excel_loaded_ok = True
+                else:
+                    wb = load_workbook(EXCEL_FILE_PATH)
+                    # Ensure sheets exist and headers are correct
+                    if DOWNLOADED_SHEET_NAME not in wb.sheetnames:
+                        downloaded_sheet = wb.create_sheet(title=DOWNLOADED_SHEET_NAME)
+                        downloaded_sheet.append(["Video Index", "Optimized Title", "Downloaded Date", "Views", "Uploader", "Original Title"])
+                        print_warning("Created missing 'Downloaded' sheet.")
+                    else:
+                        downloaded_sheet = wb[DOWNLOADED_SHEET_NAME] # Check/fix header if needed
+
+                    if UPLOADED_SHEET_NAME not in wb.sheetnames:
+                        uploaded_sheet = wb.create_sheet(title=UPLOADED_SHEET_NAME)
+                        uploaded_sheet.append(["Video Index", "Optimized Title", "YouTube Video ID", "Upload Timestamp", "Scheduled Time", "Publish Status"])
+                        print_warning("Created missing 'Uploaded' sheet.")
+                    else:
+                        uploaded_sheet = wb[UPLOADED_SHEET_NAME] # Check/fix header if needed
+
+                    print_success(f"Loaded Excel file: {EXCEL_FILENAME}")
+                    excel_loaded_ok = True
+            except Exception as e:
+                print_fatal(f"Error handling Excel file {EXCEL_FILE_PATH}: {e}")
+
+        if not excel_loaded_ok:
+            exit(1) # Should be caught by fatal, but safety check
 
         # --- Load Caches ---
         print(f"{Fore.BLUE}--- Loading Caches ---{Style.RESET_ALL}")
@@ -1495,8 +1563,72 @@ if __name__ == "__main__":
 
         # Save Excel
         print_info("Saving final Excel file...", 1)
-        try: wb.save(EXCEL_FILE_PATH); print_success(f"Saved final updates to {EXCEL_FILENAME}.")
-        except Exception as e: print_error(f"Error saving final Excel file '{EXCEL_FILENAME}': {e}", 1)
+
+        # Try to import excel_utils module
+        try:
+            import excel_utils
+            excel_utils_available = True
+            print_info("Using excel_utils module for robust Excel saving", 2)
+        except ImportError:
+            excel_utils_available = False
+            print_warning("excel_utils module not available. Using fallback Excel saving.", 2)
+
+        if excel_utils_available:
+            # Extract workbook data for backup in case save fails
+            def extract_data(wb):
+                data = {}
+                for sheet_name in wb.sheetnames:
+                    sheet = wb[sheet_name]
+                    data[sheet_name] = []
+                    for row in sheet.iter_rows(values_only=True):
+                        data[sheet_name].append(list(row))
+                return data
+
+            # Use the robust save mechanism
+            if excel_utils.save_workbook_with_fallback(wb, EXCEL_FILE_PATH, extract_data):
+                print_success(f"Saved final updates to {EXCEL_FILENAME} using excel_utils.", 2)
+            else:
+                # If all save methods failed, create a JSON backup
+                backup_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), f"excel_backup_data_{datetime.now():%Y%m%d_%H%M%S}.json")
+                print_warning(f"All Excel save methods failed. Creating JSON backup: {backup_file}", 2)
+                try:
+                    with open(backup_file, "w", encoding='utf-8') as bf:
+                        json.dump(extract_data(wb), bf, indent=4, default=str)
+                        print_success(f"Saved backup to {backup_file}", 2)
+                except Exception as be:
+                    print_error(f"CRITICAL: Failed backup save: {be}", 2)
+        else:
+            # Fallback to original save mechanism with simple retry
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    wb.save(EXCEL_FILE_PATH)
+                    print_success(f"Saved final updates to {EXCEL_FILENAME} (attempt {attempt+1}).", 2)
+                    break
+                except PermissionError as pe:
+                    if attempt < max_retries - 1:
+                        print_warning(f"PermissionError saving Excel (attempt {attempt+1}/{max_retries}): {pe}", 2)
+                        print_info(f"Retrying in 2 seconds...", 2)
+                        time.sleep(2)
+                    else:
+                        # On last attempt failure, try to save to a backup file
+                        print_error(f"Failed to save Excel after {max_retries} attempts: {pe}", 2)
+                        backup_path = f"{EXCEL_FILE_PATH}.backup_{datetime.now():%Y%m%d_%H%M%S}.xlsx"
+                        try:
+                            wb.save(backup_path)
+                            print_success(f"Saved backup Excel file: {backup_path}", 2)
+                        except Exception as be:
+                            print_error(f"Failed to save backup Excel file: {be}", 2)
+                except Exception as e:
+                    print_error(f"Error saving final Excel file '{EXCEL_FILENAME}': {e}", 2)
+                    # Try to save to a backup file
+                    backup_path = f"{EXCEL_FILE_PATH}.backup_{datetime.now():%Y%m%d_%H%M%S}.xlsx"
+                    try:
+                        wb.save(backup_path)
+                        print_success(f"Saved backup Excel file: {backup_path}", 2)
+                    except Exception as be:
+                        print_error(f"Failed to save backup Excel file: {be}", 2)
+                    break
 
         # Final Cache Saves
         print_info("Performing final cache saves...", 1)

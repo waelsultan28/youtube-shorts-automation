@@ -904,8 +904,8 @@ def upload_video(
         # --- Show More, Altered Content ---
         print_info("Handling 'Show More' and 'Altered Content'...", indent=2)
         show_more_xpath_options = [
-            "//ytcp-button[@id='toggle-button']//div[contains(text(), 'Show more')]", # Preferred modern
-            "//ytcp-button-shape//button[@aria-label='Show advanced settings']", # Alternative structure
+            "//ytcp-button-shape//button[@aria-label='Show advanced settings']", # Preferred modern
+            "//ytcp-button[@id='toggle-button']//div[contains(text(), 'Show more')]", # Alternative structure
             "//button[@aria-label='Show advanced settings']", # Simpler fallback
         ]
         show_more_clicked = False
@@ -1774,20 +1774,94 @@ def main():
             "Downloaded": ["Video ID", "Optimized Title", "Downloaded Date", "Views", "Uploader", "Original Title"],
             "Uploaded": ["Video Index", "Optimized Title", "YouTube Video ID", "Upload Timestamp", "Scheduled Time", "Publish Status"]
         }
-        if not os.path.exists(EXCEL_FILE_PATH):
-             print_info(f"Excel file '{EXCEL_FILE_PATH}' not found. Creating new workbook...", indent=1); wb = Workbook(); downloaded_sheet = wb.active; downloaded_sheet.title = "Downloaded"; downloaded_sheet.append(excel_headers["Downloaded"])
-             uploaded_sheet = wb.create_sheet("Uploaded"); uploaded_sheet.append(excel_headers["Uploaded"]); excel_save_required = True
-             try: wb.save(EXCEL_FILE_PATH); print_success(f"Created and saved new Excel file: {EXCEL_FILE_PATH}", indent=1)
-             except Exception as e: print_fatal(f"Failed to save newly created Excel file '{EXCEL_FILE_PATH}': {e}"); raise
-        else:
-             try:
-                 print_info(f"Loading existing Excel file: {EXCEL_FILE_PATH}", indent=1); wb = load_workbook(EXCEL_FILE_PATH)
-                 if "Downloaded" not in wb.sheetnames: print_warning("'Downloaded' sheet missing. Creating...", indent=2); downloaded_sheet = wb.create_sheet("Downloaded", 0); downloaded_sheet.append(excel_headers["Downloaded"]); excel_save_required = True
-                 else: downloaded_sheet = wb["Downloaded"]
-                 if "Uploaded" not in wb.sheetnames: print_warning("'Uploaded' sheet missing. Creating...", indent=2); uploaded_sheet = wb.create_sheet("Uploaded"); uploaded_sheet.append(excel_headers["Uploaded"]); excel_save_required = True
-                 else: uploaded_sheet = wb["Uploaded"]
-                 print_success("Excel file loaded successfully.", indent=1)
-             except Exception as e: print_fatal(f"Error loading existing Excel file '{EXCEL_FILE_PATH}': {e}"); raise
+
+        # Try to import excel_utils module
+        try:
+            import excel_utils
+            excel_utils_available = True
+            print_info("Using excel_utils module for robust Excel handling", indent=1)
+        except ImportError:
+            excel_utils_available = False
+            print_warning("excel_utils module not available. Using fallback Excel handling.", indent=1)
+
+        if excel_utils_available:
+            # Use the excel_utils module for robust Excel handling
+            try:
+                wb, sheets, save_needed = excel_utils.load_or_create_excel(EXCEL_FILE_PATH, excel_headers)
+
+                if not wb:
+                    print_fatal(f"Failed to load or create Excel file: {EXCEL_FILE_PATH}")
+                    raise Exception(f"Failed to load or create Excel file: {EXCEL_FILE_PATH}")
+
+                downloaded_sheet = sheets.get("Downloaded")
+                uploaded_sheet = sheets.get("Uploaded")
+
+                # Save if needed using robust save mechanism
+                if save_needed:
+                    excel_save_required = True
+                    if not excel_utils.safe_save_workbook(wb, EXCEL_FILE_PATH, close_excel=True, create_backup=True):
+                        print_warning(f"Could not save structural changes to Excel. Will try again later.", indent=1)
+
+                print_success("Excel loaded successfully using excel_utils.", indent=1)
+            except Exception as e:
+                print_error(f"Error using excel_utils: {e}", indent=1, include_traceback=True)
+                print_warning("Falling back to standard Excel handling.", indent=1)
+                excel_utils_available = False  # Force fallback
+
+        # Fallback to original implementation if excel_utils is not available or failed
+        if not excel_utils_available:
+            if not os.path.exists(EXCEL_FILE_PATH):
+                 print_info(f"Excel file '{EXCEL_FILE_PATH}' not found. Creating new workbook...", indent=1)
+                 wb = Workbook()
+                 downloaded_sheet = wb.active
+                 downloaded_sheet.title = "Downloaded"
+                 downloaded_sheet.append(excel_headers["Downloaded"])
+                 uploaded_sheet = wb.create_sheet("Uploaded")
+                 uploaded_sheet.append(excel_headers["Uploaded"])
+                 excel_save_required = True
+
+                 # Try to save with a simple retry mechanism
+                 max_retries = 3
+                 for attempt in range(max_retries):
+                     try:
+                         wb.save(EXCEL_FILE_PATH)
+                         print_success(f"Created and saved new Excel file: {EXCEL_FILE_PATH} (attempt {attempt+1})", indent=1)
+                         break
+                     except PermissionError as pe:
+                         if attempt < max_retries - 1:
+                             print_warning(f"PermissionError saving Excel (attempt {attempt+1}/{max_retries}): {pe}", indent=1)
+                             print_info(f"Retrying in 2 seconds...", indent=1)
+                             time.sleep(2)
+                         else:
+                             print_fatal(f"Failed to save newly created Excel file '{EXCEL_FILE_PATH}' after {max_retries} attempts: {pe}")
+                             raise
+                     except Exception as e:
+                         print_fatal(f"Failed to save newly created Excel file '{EXCEL_FILE_PATH}': {e}")
+                         raise
+            else:
+                 try:
+                     print_info(f"Loading existing Excel file: {EXCEL_FILE_PATH}", indent=1)
+                     wb = load_workbook(EXCEL_FILE_PATH)
+                     if "Downloaded" not in wb.sheetnames:
+                         print_warning("'Downloaded' sheet missing. Creating...", indent=2)
+                         downloaded_sheet = wb.create_sheet("Downloaded", 0)
+                         downloaded_sheet.append(excel_headers["Downloaded"])
+                         excel_save_required = True
+                     else:
+                         downloaded_sheet = wb["Downloaded"]
+
+                     if "Uploaded" not in wb.sheetnames:
+                         print_warning("'Uploaded' sheet missing. Creating...", indent=2)
+                         uploaded_sheet = wb.create_sheet("Uploaded")
+                         uploaded_sheet.append(excel_headers["Uploaded"])
+                         excel_save_required = True
+                     else:
+                         uploaded_sheet = wb["Uploaded"]
+
+                     print_success("Excel file loaded successfully.", indent=1)
+                 except Exception as e:
+                     print_fatal(f"Error loading existing Excel file '{EXCEL_FILE_PATH}': {e}")
+                     raise
 
         print_section_header("Checking Scheduled Video Status")
         if check_and_update_scheduled(uploaded_sheet): excel_save_required = True
@@ -2159,14 +2233,87 @@ def main():
 
         if wb and excel_save_required:
             print_section_header("Saving Excel Data")
+
+            # Try to import excel_utils module
             try:
-                wb.save(EXCEL_FILE_PATH); print_success(f"Excel data saved successfully to: {EXCEL_FILE_PATH}", indent=1)
-            except PermissionError as pe:
-                 msg = f"PermissionError saving Excel '{EXCEL_FILE_PATH}'. Is it open? {pe}"; print_error(msg, indent=1); log_error_to_file(f"ERROR: {msg}")
-                 try: backup_path = EXCEL_FILE_PATH + f".backup_{datetime.now():%Y%m%d_%H%M%S}.xlsx"; wb.save(backup_path); print_warning(f"Saved backup Excel: {backup_path}", indent=1); log_error_to_file(f"Warning: Saved backup Excel to {backup_path} after primary save failed.")
-                 except Exception as backup_e: print_error(f"Failed to save backup Excel file: {backup_e}", indent=1); log_error_to_file(f"ERROR: Failed to save backup Excel: {backup_e}")
-            except Exception as e: msg = f"Error saving Excel file '{EXCEL_FILE_PATH}': {e}"; print_error(msg, indent=1); log_error_to_file(f"ERROR: {msg}", include_traceback=True)
-        elif wb: print_section_header("Excel Data"); print_info("No changes detected in Excel data requiring save.", indent=1)
+                import excel_utils
+                excel_utils_available = True
+                print_info("Using excel_utils module for robust Excel saving", indent=1)
+            except ImportError:
+                excel_utils_available = False
+                print_warning("excel_utils module not available. Using fallback Excel saving.", indent=1)
+
+            if excel_utils_available:
+                # Extract workbook data for backup in case save fails
+                def extract_data(wb):
+                    data = {}
+                    for sheet_name in wb.sheetnames:
+                        sheet = wb[sheet_name]
+                        data[sheet_name] = []
+                        for row in sheet.iter_rows(values_only=True):
+                            data[sheet_name].append(list(row))
+                    return data
+
+                # Use the robust save mechanism
+                if excel_utils.save_workbook_with_fallback(wb, EXCEL_FILE_PATH, extract_data):
+                    print_success(f"Excel data saved successfully to: {EXCEL_FILE_PATH} using excel_utils", indent=1)
+                else:
+                    # If all save methods failed, create a JSON backup
+                    backup_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), f"excel_backup_data_{datetime.now():%Y%m%d_%H%M%S}.json")
+                    print_warning(f"All Excel save methods failed. Creating JSON backup: {backup_file}", indent=1)
+                    try:
+                        with open(backup_file, "w", encoding='utf-8') as bf:
+                            json.dump(extract_data(wb), bf, indent=4, default=str)
+                            print_success(f"Saved backup to {backup_file}", indent=1)
+                            log_error_to_file(f"Saved Excel data backup to JSON: {backup_file} after all Excel save methods failed.")
+                    except Exception as be:
+                        print_error(f"CRITICAL: Failed backup save: {be}", indent=1)
+                        log_error_to_file(f"ERROR: Failed to save Excel backup: {be}", include_traceback=True)
+            else:
+                # Fallback to original save mechanism with simple retry
+                max_retries = 3
+                for attempt in range(max_retries):
+                    try:
+                        wb.save(EXCEL_FILE_PATH)
+                        print_success(f"Excel data saved successfully to: {EXCEL_FILE_PATH} (attempt {attempt+1})", indent=1)
+                        break
+                    except PermissionError as pe:
+                        if attempt < max_retries - 1:
+                            msg = f"PermissionError saving Excel (attempt {attempt+1}/{max_retries}): {pe}"
+                            print_warning(msg, indent=1)
+                            log_error_to_file(f"WARNING: {msg}")
+                            print_info(f"Retrying in 2 seconds...", indent=1)
+                            time.sleep(2)
+                        else:
+                            # On last attempt failure, try to save to a backup file
+                            msg = f"Failed to save Excel after {max_retries} attempts: {pe}"
+                            print_error(msg, indent=1)
+                            log_error_to_file(f"ERROR: {msg}")
+                            backup_path = EXCEL_FILE_PATH + f".backup_{datetime.now():%Y%m%d_%H%M%S}.xlsx"
+                            try:
+                                wb.save(backup_path)
+                                print_warning(f"Saved backup Excel: {backup_path}", indent=1)
+                                log_error_to_file(f"Warning: Saved backup Excel to {backup_path} after primary save failed.")
+                            except Exception as backup_e:
+                                print_error(f"Failed to save backup Excel file: {backup_e}", indent=1)
+                                log_error_to_file(f"ERROR: Failed to save backup Excel: {backup_e}")
+                    except Exception as e:
+                        msg = f"Error saving Excel file '{EXCEL_FILE_PATH}': {e}"
+                        print_error(msg, indent=1)
+                        log_error_to_file(f"ERROR: {msg}", include_traceback=True)
+                        # Try to save to a backup file
+                        backup_path = EXCEL_FILE_PATH + f".backup_{datetime.now():%Y%m%d_%H%M%S}.xlsx"
+                        try:
+                            wb.save(backup_path)
+                            print_warning(f"Saved backup Excel: {backup_path}", indent=1)
+                            log_error_to_file(f"Warning: Saved backup Excel to {backup_path} after primary save failed.")
+                        except Exception as backup_e:
+                            print_error(f"Failed to save backup Excel file: {backup_e}", indent=1)
+                            log_error_to_file(f"ERROR: Failed to save backup Excel: {backup_e}")
+                        break
+        elif wb:
+            print_section_header("Excel Data")
+            print_info("No changes detected in Excel data requiring save.", indent=1)
 
         if driver:
             print_section_header("Shutting Down WebDriver")
