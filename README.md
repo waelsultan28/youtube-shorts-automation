@@ -19,6 +19,7 @@ These components work together to create a complete automation pipeline for YouT
 
 ### Downloader Features
 - **SEO-Focused Metadata Generation**: Creates highly optimized titles, descriptions, and tags
+- **Dynamic Category Suggestion**: Uses AI to suggest the most appropriate YouTube category based on video content
 - **Performance-Based Keyword Selection**: Learns which keywords lead to better-performing videos
 - **Dynamic Keyword Management**: Adds new keywords and removes underperforming ones
 - **Metadata Prompt Refinement**: Automatically improves the prompt used for metadata generation
@@ -27,6 +28,7 @@ These components work together to create a complete automation pipeline for YouT
 ### Uploader Features
 - **Automated Uploads**: Batch upload videos to YouTube as Shorts
 - **Metadata Management**: Apply optimized titles, descriptions, and tags
+- **Smart Category Selection**: Uses AI-suggested categories with fallback to default configuration
 - **Scheduling**: Schedule videos for future publication
 - **Error Handling**: Robust error detection and recovery
 - **Performance Tracking**: Track upload success rates and error patterns
@@ -86,7 +88,7 @@ MAX_UPLOADS=12         # Maximum number of videos to upload per run
 MAX_KEYWORDS=200       # Maximum number of keywords to store
 
 # Upload Settings
-UPLOAD_CATEGORY=Gaming  # YouTube category for uploads
+UPLOAD_CATEGORY=Gaming  # Default YouTube category for uploads (used as fallback if AI suggestion fails)
 
 # --- Scheduling Settings ---
 
@@ -269,15 +271,25 @@ yt-upload   # Run uploader
 
 ## Releases
 
-### Latest Release: [v1.0.0](https://github.com/Mrshahidali420/youtube-shorts-automation/releases/tag/v1.0.0)
+### Latest Release: [v1.1.0](https://github.com/Mrshahidali420/youtube-shorts-automation/releases/tag/v1.1.0)
 
-The latest stable release of the YouTube Shorts Automation Suite is v1.0.0. You can:
+The latest stable release of the YouTube Shorts Automation Suite is v1.1.0. You can:
 
-- **Download**: Get the [ZIP file](https://github.com/Mrshahidali420/youtube-shorts-automation/archive/refs/tags/v1.0.0.zip) directly
-- **Clone**: Use Git to clone a specific version: `git clone -b v1.0.0 https://github.com/Mrshahidali420/youtube-shorts-automation.git`
-- **Install**: Install with pip: `pip install git+https://github.com/Mrshahidali420/youtube-shorts-automation.git@v1.0.0`
+- **Download**: Get the [ZIP file](https://github.com/Mrshahidali420/youtube-shorts-automation/archive/refs/tags/v1.1.0.zip) directly
+- **Clone**: Use Git to clone a specific version: `git clone -b v1.1.0 https://github.com/Mrshahidali420/youtube-shorts-automation.git`
+- **Install**: Install with pip: `pip install git+https://github.com/Mrshahidali420/youtube-shorts-automation.git@v1.1.0`
 
 ### Release Notes
+
+#### v1.1.0 - Latest Release
+
+**New Features:**
+- **Dynamic Category Suggestion**: Added AI-powered YouTube category suggestion based on video content
+- **Smart Category Selection**: Uploader now uses AI-suggested categories with fallback to default configuration
+
+**Bug Fixes:**
+- Fixed issue where info.json file was deleted before tag extraction, causing "Info file not found" warnings
+- Various code improvements and optimizations
 
 See the [releases page](https://github.com/Mrshahidali420/youtube-shorts-automation/releases) for detailed release notes, which include:
 
