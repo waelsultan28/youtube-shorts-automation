@@ -43,6 +43,7 @@ These components work together to create a complete automation pipeline for YouT
 - **Performance Tracking**: Track upload success rates and error patterns
 - **AI-Assisted Analysis**: Use Google's Gemini AI to analyze errors and suggest improvements
 - **Debug Recording**: Optional screen recording during uploads for troubleshooting
+- **Excel Auto-Closing**: Automatically detects and closes Excel processes to prevent permission errors when saving
 
 ## Self-Improvement Features
 
@@ -181,7 +182,7 @@ The system uses an Excel file (`shorts_data.xlsx`) with two sheets:
 ## Requirements
 
 - Python 3.8+
-- Required packages: `yt_dlp`, `google-generativeai`, `openpyxl`, `colorama`, `selenium`
+- Required packages: `yt_dlp`, `google-generativeai`, `openpyxl`, `colorama`, `selenium`, `psutil`
 - Firefox browser (for uploader)
 - Google Gemini API key (for all AI features)
 - FFmpeg (for video processing and optional debug recording)
@@ -267,7 +268,9 @@ The channel-based downloader will:
 ### Main Scripts
 - `performance_tracker.py`: Tracks video performance metrics
 - `downloader.py`: Downloads videos with SEO optimization and self-improvement
+- `downloader_channel.py`: Downloads videos from specific YouTube channels
 - `uploader.py`: Uploads videos to YouTube
+- `excel_utils.py`: Utilities for robust Excel file handling
 
 ### Package Structure
 - `youtube_shorts/`: Package directory
@@ -275,6 +278,7 @@ The channel-based downloader will:
   - `performance_tracker.py`: Performance tracking module
   - `downloader.py`: Video downloading module
   - `uploader.py`: Video uploading module
+  - `excel_utils.py`: Excel utilities module
 
 ### Configuration and Data Files
 - `setup.py`: Package setup script
@@ -288,6 +292,7 @@ The channel-based downloader will:
 - `performance_metrics.json`: Tracks overall performance metrics (created by setup script)
 - `channel_processed_ids_cache.json`: Tracks which videos have been processed from each channel
 - `channel_listing_cache.json`: Stores channel video lists to avoid repeatedly fetching the same content
+- `upload_correlation_cache.json`: Stores links between video indices, discovery keywords, and YouTube Video IDs
 
 ### Directories
 - `shorts_downloads/`: Where downloaded videos are stored (created by setup script)
@@ -296,17 +301,31 @@ The channel-based downloader will:
 
 ## Releases
 
-### Latest Release: [v1.1.0](https://github.com/Mrshahidali420/youtube-shorts-automation/releases/tag/v1.1.0)
+### Latest Release: [v1.2.0](https://github.com/Mrshahidali420/youtube-shorts-automation/releases/tag/v1.2.0)
 
-The latest stable release of the YouTube Shorts Automation Suite is v1.1.0. You can:
+The latest stable release of the YouTube Shorts Automation Suite is v1.2.0. You can:
 
-- **Download**: Get the [ZIP file](https://github.com/Mrshahidali420/youtube-shorts-automation/archive/refs/tags/v1.1.0.zip) directly
-- **Clone**: Use Git to clone a specific version: `git clone -b v1.1.0 https://github.com/Mrshahidali420/youtube-shorts-automation.git`
-- **Install**: Install with pip: `pip install git+https://github.com/Mrshahidali420/youtube-shorts-automation.git@v1.1.0`
+- **Download**: Get the [ZIP file](https://github.com/Mrshahidali420/youtube-shorts-automation/archive/refs/tags/v1.2.0.zip) directly
+- **Clone**: Use Git to clone a specific version: `git clone -b v1.2.0 https://github.com/Mrshahidali420/youtube-shorts-automation.git`
+- **Install**: Install with pip: `pip install git+https://github.com/Mrshahidali420/youtube-shorts-automation.git@v1.2.0`
 
 ### Release Notes
 
-#### v1.1.0 - Latest Release
+#### v1.2.0 - Latest Release
+
+**New Features:**
+- **Excel Auto-Closing Functionality**: Added robust Excel handling to prevent permission errors when saving Excel files
+- **Excel Utilities Module**: Created a dedicated module for Excel operations with process management
+- **Automatic Backup Creation**: Added automatic backup of Excel files before saving
+- **Retry Mechanics**: Implemented retry logic for Excel operations with exponential backoff
+- **Fallback Save Methods**: Added multiple fallback methods for saving Excel data when primary methods fail
+
+**Improvements:**
+- Enhanced error handling for Excel operations
+- Added graceful degradation when Excel utilities are not available
+- Improved logging for Excel-related operations
+
+#### v1.1.0
 
 **New Features:**
 - **Dynamic Category Suggestion**: Added AI-powered YouTube category suggestion based on video content
