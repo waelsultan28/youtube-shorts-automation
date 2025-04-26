@@ -7,23 +7,32 @@ This suite of scripts automates the entire YouTube Shorts workflow - from findin
 
 ## Components
 
-The suite consists of three main scripts:
+The suite consists of four main scripts:
 
 1. **Performance Tracker** (`performance_tracker.py`): Collects performance metrics from uploaded videos
-2. **Downloader** (`downloader.py`): Finds and downloads new videos with SEO optimization and self-improvement
-3. **Uploader** (`uploader.py`): Uploads the videos to YouTube with optimized metadata
+2. **Keyword-Based Downloader** (`downloader.py`): Finds and downloads new videos using keywords with SEO optimization and self-improvement
+3. **Channel-Based Downloader** (`downloader_channel.py`): Downloads videos from specific YouTube channels listed in channels.txt
+4. **Uploader** (`uploader.py`): Uploads the videos to YouTube with optimized metadata
 
 These components work together to create a complete automation pipeline for YouTube Shorts.
 
 ## Features
 
-### Downloader Features
+### Keyword-Based Downloader Features
 - **SEO-Focused Metadata Generation**: Creates highly optimized titles, descriptions, and tags
 - **Dynamic Category Suggestion**: Uses AI to suggest the most appropriate YouTube category based on video content
 - **Performance-Based Keyword Selection**: Learns which keywords lead to better-performing videos
 - **Dynamic Keyword Management**: Adds new keywords and removes underperforming ones
 - **Metadata Prompt Refinement**: Automatically improves the prompt used for metadata generation
 - **Parameter Tuning Suggestions**: Analyzes performance metrics to suggest configuration changes
+
+### Channel-Based Downloader Features
+- **Channel-Specific Video Discovery**: Downloads videos from specific YouTube channels listed in channels.txt
+- **Permanent Channel Caching**: Stores channel video lists to avoid repeatedly fetching the same content
+- **Per-Channel Processed ID Tracking**: Keeps track of which videos have been processed for each channel
+- **View Count Prioritization**: Downloads videos with higher view counts first
+- **SEO-Focused Metadata Generation**: Creates optimized titles, descriptions, and tags with proper credit to original uploaders
+- **Compatible with Uploader**: Works seamlessly with the uploader script and performance tracking system
 
 ### Uploader Features
 - **Automated Uploads**: Batch upload videos to YouTube as Shorts
@@ -207,17 +216,30 @@ The system uses an Excel file (`shorts_data.xlsx`) with two sheets:
 
 ```
 python performance_tracker.py
-python downloader.py
+python downloader.py           # Run keyword-based downloader
+python downloader_channel.py   # Run channel-based downloader
 python uploader.py
 ```
 
 ### Using Package Commands (if installed as a package)
 
 ```
-yt-track   # Run performance tracker
-yt-download # Run downloader
+yt-track    # Run performance tracker
+yt-download # Run keyword-based downloader
+yt-channel  # Run channel-based downloader
 yt-upload   # Run uploader
 ```
+
+### Setting Up Channel-Based Downloads
+
+1. Create a `channels.txt` file in the root directory
+2. Add one YouTube channel URL per line (e.g., `https://www.youtube.com/@ChannelName`)
+3. Run the channel-based downloader: `python downloader_channel.py`
+
+The channel-based downloader will:
+- Download videos from the specified channels
+- Store metadata in the same format as the keyword-based downloader
+- Add entries to the same Excel file for processing by the uploader
 
 ## Error Types Tracked
 
@@ -258,11 +280,14 @@ yt-upload   # Run uploader
 - `setup.py`: Package setup script
 - `requirements.txt`: Required dependencies
 - `config.txt`: Configuration settings (created by setup script)
-- `niche.txt`: Target niche for content (created by setup script)
+- `niche.txt`: Target niche for content for keyword-based downloader (created by setup script)
+- `channels.txt`: List of YouTube channel URLs for channel-based downloader
 - `shorts_data.xlsx`: Excel file tracking downloaded and uploaded videos (created by setup script)
 - `seo_metadata_prompt.txt`: Cache for the potentially improved SEO prompt (created during runtime)
 - `metadata_metrics.json`: Tracks metadata generation metrics (created by setup script)
 - `performance_metrics.json`: Tracks overall performance metrics (created by setup script)
+- `channel_processed_ids_cache.json`: Tracks which videos have been processed from each channel
+- `channel_listing_cache.json`: Stores channel video lists to avoid repeatedly fetching the same content
 
 ### Directories
 - `shorts_downloads/`: Where downloaded videos are stored (created by setup script)
@@ -286,6 +311,8 @@ The latest stable release of the YouTube Shorts Automation Suite is v1.1.0. You 
 **New Features:**
 - **Dynamic Category Suggestion**: Added AI-powered YouTube category suggestion based on video content
 - **Smart Category Selection**: Uploader now uses AI-suggested categories with fallback to default configuration
+- **Channel-Based Downloader**: Added new script to download videos from specific YouTube channels
+- **Integrated Downloaders**: Both keyword-based and channel-based downloaders work together seamlessly
 
 **Bug Fixes:**
 - Fixed issue where info.json file was deleted before tag extraction, causing "Info file not found" warnings
