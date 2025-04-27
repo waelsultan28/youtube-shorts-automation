@@ -1092,6 +1092,12 @@ def upload_video(
 
         # --- Click through "Next" buttons ---
         print_info("Proceeding through 'Next' steps (Checks, Elements, Visibility)...", indent=2)
+
+        # Add a longer pause before attempting the first "Next" click
+        # This gives the UI more time to settle after filling metadata
+        print_info("Pausing briefly before clicking first 'Next'...", indent=2)
+        time.sleep(2.5)  # Increase pause duration to allow UI to stabilize
+
         num_next_clicks = 3; max_retries_next = 3; retry_delay_seconds_next = 5
         short_timeout_duration = 25
         next_button_xpath_options = [
@@ -1123,15 +1129,34 @@ def upload_video(
                         time.sleep(wait_after_next) # Use time.sleep for fixed delay
                         break # Exit retry loop
                     except ElementClickInterceptedException:
-                        print_warning(f"'Next' button (Step {i+1}) intercepted. Retrying after scroll/delay...", indent=4)
-                        driver.execute_script("window.scrollBy(0, 150);") # Scroll down slightly
+                        print_warning(f"'Next' button (Step {i+1}) intercepted. Trying JS click...", indent=4)
+                        try:
+                            # Try JavaScript click when intercepted
+                            driver.execute_script("arguments[0].click();", next_button)
+                            next_button_clicked = True
+                            print_success(f"'Next' button (Step {i+1} - {step_name}) clicked successfully (JS Click).", indent=4)
+                            # Wait after click
+                            wait_after_next = 3.0 if i == 1 else 2.0
+                            print_info(f"Waiting {wait_after_next}s after clicking Next...", indent=5)
+                            time.sleep(wait_after_next)
+                            break # Exit retry loop
+                        except Exception as js_e:
+                            print_warning(f"JS click also failed for 'Next' (Step {i+1}): {js_e}", indent=4)
+                            # Try scrolling and waiting before next attempt
+                            driver.execute_script("window.scrollBy(0, 150);") # Scroll down slightly
+                            time.sleep(1) # Wait a bit longer after failed JS click
                     except Exception as e:
                         print_error(f"Unexpected error clicking found 'Next' button (Step {i+1}): {e}", indent=4, include_traceback=False)
-                        log_error_to_file(f"Error clicking Next {i+1} ({step_name}) for {video_index}: {e}", include_traceback=True); return False # Fail upload on unexpected click error
+                        log_error_to_file(f"Error clicking Next {i+1} ({step_name}) for {video_index}: {e}", include_traceback=True)
+                        # Don't return False immediately, let the retry loop continue
                 if not next_button_clicked:
                     print_warning(f"'Next' button (Step {i+1}) not clickable or found. Retry {retry_count+1}/{max_retries_next} in {retry_delay_seconds_next}s...", indent=4)
                     time.sleep(retry_delay_seconds_next); retry_count += 1
-            if not next_button_clicked: msg = f"Failed to find or click 'Next' button (Step {i+1} - {step_name}) after {max_retries_next} attempts."; print_error(msg, indent=3); return False
+            if not next_button_clicked:
+                msg = f"Failed to find or click 'Next' button (Step {i+1} - {step_name}) after {max_retries_next} attempts."
+                print_error(msg, indent=3)
+                log_error_to_file(f"ERROR: {msg}", error_type="next_button", step=f"Next_{i+1}", video_index=video_index)
+                return None  # Return None instead of False to clearly indicate failure
         # --- End Next Buttons ---
 
         # --- Handle Visibility (Publish or Schedule) ---
@@ -2156,8 +2181,10 @@ def main():
                             print_error("Manual retry also failed.", indent=1)
                             # Loop continues, asking the user again (Retry/Skip/Quit)
 
-            # --- Post-Upload Actions (Only if successful) ---
-            if final_upload_successful:
+            # --- Post-Upload Actions ---
+            # Check for both successful upload AND valid YouTube ID
+            if final_upload_successful and captured_youtube_video_id:
+                print_success(f"Upload validated successfully for video index {video_index} (YT ID: {captured_youtube_video_id})", indent=1)
                 uploaded_count += 1
                 metrics["total_uploads_successful"] += 1
                 excel_save_required = True
@@ -2196,9 +2223,20 @@ def main():
                     first_video_this_run = False
 
                 print_success(f"Successfully processed video index {video_index} (YT ID: {captured_youtube_video_id}). Run count: {uploaded_count}/{max_uploads}", indent=1)
+
+            # --- ELSE: Handle the failure case explicitly ---
             else:
-                # Failure message for videos that were not successfully uploaded
-                print_error(f"Upload failed for video index {video_index}. Files NOT deleted. Check logs and YT Studio.", indent=1)
+                # This runs if final_upload_successful is False OR captured_youtube_video_id is None/False
+                print_error(f"Upload FAILED for video index {video_index}. Files NOT deleted. Check logs and YT Studio.", indent=1)
+                log_error_to_file(f"Upload FAILED (final state) for video index {video_index}. Files kept.", step="post_upload_check", video_index=video_index)
+
+                # Log the specific failure reason
+                if not final_upload_successful:
+                    print_error("Reason: Upload process did not complete successfully", indent=2)
+                elif not captured_youtube_video_id:
+                    print_error("Reason: No valid YouTube Video ID was captured", indent=2)
+
+                # DO NOT update excel or delete files here
                 print_warning("Continuing to the next video (if any).", indent=1)
 
             # Save metrics after each upload attempt
