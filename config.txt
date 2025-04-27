@@ -1,0 +1,76 @@
+# GTA 6 YouTube Automation Tool Configuration
+
+API_KEY=AIzaSyB5tTArK4YWMD4JO_hb4z6RFP2cRY19Usg
+MAX_DOWNLOADS=12
+MAX_UPLOADS=12
+MAX_KEYWORDS=200
+
+# Upload Settings
+# Default YouTube category (used as fallback if AI suggestion fails)
+UPLOAD_CATEGORY=Gaming
+
+# --- Scheduling Settings ---
+
+# Mode for scheduling uploads. Options:
+#   default_interval = Publish first video now, schedule subsequent videos at fixed interval.
+#   custom_tomorrow  = Try custom schedule times from config (for tomorrow onwards), then use fixed interval fallback. NO immediate publish.
+SCHEDULING_MODE=default_interval
+
+# Fixed interval (in minutes) used for scheduling in 'default_interval' mode
+# AND as the fallback interval in 'custom_tomorrow' mode when custom slots are exhausted/invalid.
+SCHEDULE_INTERVAL_MINUTES=120
+
+# List of preferred schedule times (HH:MM AM/PM format, comma-separated) for 'custom_tomorrow' mode.
+# The script will try to use these times sequentially for videos in a run, always targeting TOMORROW's date or later.
+CUSTOM_SCHEDULE_TIMES=6:00 AM, 9:00 AM, 11:30 AM, 3:00 PM, 6:00 PM, 10:00 PM
+
+# Minimum number of minutes ahead of the current time a video can be scheduled.
+# Prevents scheduling too close to the current time, which YouTube might reject.
+MIN_SCHEDULE_AHEAD_MINUTES=20
+
+# --- End Scheduling Settings ---
+
+
+# Browser Profile
+PROFILE_PATH=C:\Users\SHAHID ALI\AppData\Roaming\Mozilla\Firefox\Profiles\g65cd41v.GTA 6 shorts
+
+# YouTube Limits (Character/Count Limits for Uploads)
+YOUTUBE_DESCRIPTION_LIMIT=4950
+YOUTUBE_TAG_LIMIT=100
+YOUTUBE_TOTAL_TAGS_LIMIT=450
+YOUTUBE_MAX_TAGS_COUNT=40
+
+# Debug Recording Settings
+# Enable screen recording for debugging (True/False). Requires FFmpeg installed.
+ENABLE_DEBUG_RECORDING=False
+# Optional: Specify full path to ffmpeg executable if not found automatically in system PATH
+FFMPEG_PATH=C:\Users\SHAHID ALI\Desktop\GTA 6 YT Script\ffmpeg.exe
+
+# Self-Improvement Features
+# Google Gemini API key for AI-assisted analysis, optimization, and category suggestions
+# Used for: Error analysis, metadata optimization, parameter tuning, and dynamic category suggestions
+# Get your API key from: https://aistudio.google.com/app/apikey
+GEMINI_API_KEY=AIzaSyB5tTArK4YWMD4JO_hb4z6RFP2cRY19Usg
+
+# --- Keyword-Based Downloader Settings ---
+# Number of search results to fetch per keyword (higher values increase the pool of potential videos)
+YT_SEARCH_RESULTS_PER_KEYWORD=200
+
+# Number of keywords to select for each run (balance between exploration and exploitation)
+KEYWORDS_TO_PROCESS_PER_RUN=7
+
+# Minimum number of keywords before generating new ones (lower values trigger more frequent keyword generation)
+MIN_KEYWORDS_THRESHOLD=10
+
+# Number of new keywords to generate when needed (higher values increase keyword pool diversity)
+NEW_KEYWORDS_TO_GENERATE=15
+
+# Maximum videos to download for a single keyword (prevents overreliance on a single keyword)
+VIDEOS_TO_DOWNLOAD_PER_KEYWORD=5
+
+# --- Channel-Based Downloader Settings ---
+# SEO settings for channel-based downloader
+SEO_CHANNEL_NAME=Random GTA Shorts
+SEO_CHANNEL_TOPIC=GTA games,gta 6, grand theft auto, gta vi, gta v, gta v, gta 5, gta 4
+SEO_EXAMPLE_TAGS=gta, gta 6, grand theft auto, gaming, gameplay, shorts, rockstar games, gta vi,
+SEO_EXAMPLE_HASHTAGS=#shorts #gta #gaming #gtavi #grandtheftauto #rockstargames

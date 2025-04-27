@@ -28,8 +28,14 @@ def print_error(msg, indent=0, include_traceback=False):
 def print_fatal(msg, indent=0): prefix = "  " * indent; print(f"{prefix}{Back.RED}{Fore.WHITE}{Style.BRIGHT} FATAL: {msg} {Style.RESET_ALL}"); exit(1)
 
 # --- Constants ---
+# These constants will be overridden by config.txt values if available
 YT_SEARCH_RESULTS_PER_KEYWORD = 50 # Number of search results to fetch per keyword
 VIDEOS_TO_DOWNLOAD_PER_KEYWORD = 5  # Max videos to download for a single keyword
+KEYWORDS_TO_PROCESS_PER_RUN = 5  # Number of keywords to select for each run
+MIN_KEYWORDS_THRESHOLD = 20      # Minimum number of keywords before generating new ones
+NEW_KEYWORDS_TO_GENERATE = 10    # Number of new keywords to generate when needed
+
+# Constants that don't change with config
 MAX_TITLE_LENGTH = 100             # YouTube's recommended max title length
 TARGET_TITLE_LENGTH = 90           # Target length before adding #Shorts (SEO focus prefers slightly longer)
 METADATA_TIMEOUT_SECONDS = 15      # Timeout for Gemini API call
@@ -56,10 +62,7 @@ TUNING_SUGGESTIONS_FILENAME = "tuning_suggestions.log" # File to store parameter
 # --- Correlation Cache Constants ---
 UPLOAD_CORRELATION_CACHE_FILENAME = "upload_correlation_cache.json" # For tracking correlation between video index, discovery keyword, and YouTube Video ID
 
-# Keyword optimization settings
-KEYWORDS_TO_PROCESS_PER_RUN = 5  # Number of keywords to select for each run
-MIN_KEYWORDS_THRESHOLD = 20      # Minimum number of keywords before generating new ones
-NEW_KEYWORDS_TO_GENERATE = 10    # Number of new keywords to generate when needed
+# Additional keyword optimization settings
 TOP_KEYWORDS_TO_USE = 5          # Number of top-performing keywords to use for new keyword generation
 
 # Metadata prompt improvement settings
@@ -1014,7 +1017,37 @@ if __name__ == "__main__":
         except (ValueError, TypeError): print_fatal(f"Invalid MAX_DOWNLOADS value in 'config.txt'. Must be an integer.")
         if max_downloads <= 0: print_fatal("MAX_DOWNLOADS must be a positive integer in 'config.txt'.")
 
+        # Load keyword-based downloader settings from config
+        global YT_SEARCH_RESULTS_PER_KEYWORD, VIDEOS_TO_DOWNLOAD_PER_KEYWORD, KEYWORDS_TO_PROCESS_PER_RUN, MIN_KEYWORDS_THRESHOLD, NEW_KEYWORDS_TO_GENERATE
+
+        # YT_SEARCH_RESULTS_PER_KEYWORD (Optional with Default)
+        try: YT_SEARCH_RESULTS_PER_KEYWORD = int(config.get("YT_SEARCH_RESULTS_PER_KEYWORD", YT_SEARCH_RESULTS_PER_KEYWORD))
+        except (ValueError, TypeError): print_warning(f"Invalid YT_SEARCH_RESULTS_PER_KEYWORD. Using default: {YT_SEARCH_RESULTS_PER_KEYWORD}")
+        if YT_SEARCH_RESULTS_PER_KEYWORD <= 0: YT_SEARCH_RESULTS_PER_KEYWORD = 50; print_warning(f"YT_SEARCH_RESULTS_PER_KEYWORD must be positive. Using default: 50")
+
+        # VIDEOS_TO_DOWNLOAD_PER_KEYWORD (Optional with Default)
+        try: VIDEOS_TO_DOWNLOAD_PER_KEYWORD = int(config.get("VIDEOS_TO_DOWNLOAD_PER_KEYWORD", VIDEOS_TO_DOWNLOAD_PER_KEYWORD))
+        except (ValueError, TypeError): print_warning(f"Invalid VIDEOS_TO_DOWNLOAD_PER_KEYWORD. Using default: {VIDEOS_TO_DOWNLOAD_PER_KEYWORD}")
+        if VIDEOS_TO_DOWNLOAD_PER_KEYWORD <= 0: VIDEOS_TO_DOWNLOAD_PER_KEYWORD = 5; print_warning(f"VIDEOS_TO_DOWNLOAD_PER_KEYWORD must be positive. Using default: 5")
+
+        # KEYWORDS_TO_PROCESS_PER_RUN (Optional with Default)
+        try: KEYWORDS_TO_PROCESS_PER_RUN = int(config.get("KEYWORDS_TO_PROCESS_PER_RUN", KEYWORDS_TO_PROCESS_PER_RUN))
+        except (ValueError, TypeError): print_warning(f"Invalid KEYWORDS_TO_PROCESS_PER_RUN. Using default: {KEYWORDS_TO_PROCESS_PER_RUN}")
+        if KEYWORDS_TO_PROCESS_PER_RUN <= 0: KEYWORDS_TO_PROCESS_PER_RUN = 5; print_warning(f"KEYWORDS_TO_PROCESS_PER_RUN must be positive. Using default: 5")
+
+        # MIN_KEYWORDS_THRESHOLD (Optional with Default)
+        try: MIN_KEYWORDS_THRESHOLD = int(config.get("MIN_KEYWORDS_THRESHOLD", MIN_KEYWORDS_THRESHOLD))
+        except (ValueError, TypeError): print_warning(f"Invalid MIN_KEYWORDS_THRESHOLD. Using default: {MIN_KEYWORDS_THRESHOLD}")
+        if MIN_KEYWORDS_THRESHOLD <= 0: MIN_KEYWORDS_THRESHOLD = 20; print_warning(f"MIN_KEYWORDS_THRESHOLD must be positive. Using default: 20")
+
+        # NEW_KEYWORDS_TO_GENERATE (Optional with Default)
+        try: NEW_KEYWORDS_TO_GENERATE = int(config.get("NEW_KEYWORDS_TO_GENERATE", NEW_KEYWORDS_TO_GENERATE))
+        except (ValueError, TypeError): print_warning(f"Invalid NEW_KEYWORDS_TO_GENERATE. Using default: {NEW_KEYWORDS_TO_GENERATE}")
+        if NEW_KEYWORDS_TO_GENERATE <= 0: NEW_KEYWORDS_TO_GENERATE = 10; print_warning(f"NEW_KEYWORDS_TO_GENERATE must be positive. Using default: 10")
+
         print(f"{Fore.BLUE}{Style.BRIGHT}Settings: Max Downloads={max_downloads}, Max Keywords={max_keywords}{Style.RESET_ALL}")
+        print(f"{Fore.BLUE}Keyword Settings: Search Results={YT_SEARCH_RESULTS_PER_KEYWORD}, Keywords Per Run={KEYWORDS_TO_PROCESS_PER_RUN}, Videos Per Keyword={VIDEOS_TO_DOWNLOAD_PER_KEYWORD}{Style.RESET_ALL}")
+        print(f"{Fore.BLUE}Keyword Generation: Min Threshold={MIN_KEYWORDS_THRESHOLD}, New Keywords={NEW_KEYWORDS_TO_GENERATE}{Style.RESET_ALL}")
 
         # --- Load or Create Excel Workbook ---
         excel_loaded_ok = False
