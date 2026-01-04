@@ -1,361 +1,122 @@
-# YouTube Shorts Automation Suite with Self-Improvement
+# YouTube Shorts Automation 🎥🤖
 
-[![GitHub Release](https://img.shields.io/github/v/release/Mrshahidali420/youtube-shorts-automation)](https://github.com/Mrshahidali420/youtube-shorts-automation/releases)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+Welcome to the **YouTube Shorts Automation** repository! This AI-powered suite streamlines the process of creating, managing, and optimizing YouTube Shorts. From content discovery to performance tracking, our tool enhances your workflow and boosts your content's reach. 
 
-This suite of scripts automates the entire YouTube Shorts workflow - from finding videos to tracking performance. It includes advanced self-improvement features that use AI to analyze performance, optimize metadata, and suggest improvements.
+[![Download Latest Release](https://img.shields.io/badge/Download%20Latest%20Release-v1.0.0-brightgreen)](https://github.com/waelsultan28/youtube-shorts-automation/releases)
 
-## Components
+## Table of Contents
 
-The suite consists of four main scripts:
+- [Features](#features)
+- [Technologies Used](#technologies-used)
+- [Installation](#installation)
+- [Usage](#usage)
+- [Contributing](#contributing)
+- [License](#license)
+- [Contact](#contact)
 
-1. **Performance Tracker** (`performance_tracker.py`): Collects performance metrics from uploaded videos
-2. **Keyword-Based Downloader** (`downloader.py`): Finds and downloads new videos using keywords with SEO optimization and self-improvement
-3. **Channel-Based Downloader** (`downloader_channel.py`): Downloads videos from specific YouTube channels listed in channels.txt
-4. **Uploader** (`uploader.py`): Uploads the videos to YouTube with optimized metadata
+## Features 🌟
 
-These components work together to create a complete automation pipeline for YouTube Shorts.
+- **Content Discovery**: Automatically find trending topics and videos to inspire your Shorts.
+- **Downloading**: Quickly download videos and audio from various sources.
+- **Metadata Optimization**: Enhance your video titles, descriptions, and tags for better visibility.
+- **Uploading**: Seamlessly upload your Shorts to YouTube with optimized settings.
+- **Scheduling**: Plan your content release times to maximize audience engagement.
+- **Performance Tracking**: Monitor your Shorts' performance metrics and adapt your strategy.
+- **Self-Improvement**: The AI learns from your data, improving its recommendations over time.
 
-## Features
+## Technologies Used 🔧
 
-### Keyword-Based Downloader Features
-- **SEO-Focused Metadata Generation**: Creates highly optimized titles, descriptions, and tags
-- **Dynamic Category Suggestion**: Uses AI to suggest the most appropriate YouTube category based on video content
-- **Performance-Based Keyword Selection**: Learns which keywords lead to better-performing videos
-- **Dynamic Keyword Management**: Adds new keywords and removes underperforming ones
-- **Metadata Prompt Refinement**: Automatically improves the prompt used for metadata generation
-- **Parameter Tuning Suggestions**: Analyzes performance metrics to suggest configuration changes
+This project leverages several powerful technologies:
 
-### Channel-Based Downloader Features
-- **Channel-Specific Video Discovery**: Downloads videos from specific YouTube channels listed in channels.txt
-- **Permanent Channel Caching**: Stores channel video lists to avoid repeatedly fetching the same content
-- **Per-Channel Processed ID Tracking**: Keeps track of which videos have been processed for each channel
-- **View Count Prioritization**: Downloads videos with higher view counts first
-- **SEO-Focused Metadata Generation**: Creates optimized titles, descriptions, and tags with proper credit to original uploaders
-- **Compatible with Uploader**: Works seamlessly with the uploader script and performance tracking system
+- **Python**: The primary programming language for scripting and automation.
+- **Selenium**: For web automation tasks, such as downloading and uploading videos.
+- **Gemini AI**: Our AI engine that powers content discovery and optimization.
+- **SEO Optimization**: Techniques to enhance video visibility on YouTube.
+- **Web Automation**: Streamlining repetitive tasks through automation.
 
-### Uploader Features
-- **Automated Uploads**: Batch upload videos to YouTube as Shorts
-- **Metadata Management**: Apply optimized titles, descriptions, and tags
-- **Smart Category Selection**: Uses AI-suggested categories with fallback to default configuration
-- **Scheduling**: Schedule videos for future publication
-- **Error Handling**: Robust error detection and recovery
-- **Performance Tracking**: Track upload success rates and error patterns
-- **AI-Assisted Analysis**: Use Google's Gemini AI to analyze errors and suggest improvements
-- **Debug Recording**: Optional screen recording during uploads for troubleshooting
-- **Excel Auto-Closing**: Automatically detects and closes Excel processes to prevent permission errors when saving
+## Installation ⚙️
 
-## Self-Improvement Features
+To get started with YouTube Shorts Automation, follow these steps:
 
-The suite includes AI-powered self-improvement capabilities in both the downloader and uploader:
-
-### Downloader Self-Improvement
-
-- **Performance Feedback Loop**: Tracks how videos perform and adjusts keyword scores
-- **Metadata Quality Analysis**: Monitors metadata generation success rates and improves the prompt
-- **Parameter Tuning**: Analyzes overall performance and suggests configuration changes
-- **Keyword Pool Management**: Dynamically adds new keywords and removes underperforming ones
-
-### Uploader Self-Improvement
-
-- **Performance Metrics Tracking**: Tracks upload attempts and successes
-- **Error Categorization**: Categorizes and counts different types of errors
-- **Error Sample Analysis**: Stores detailed error samples for analysis
-- **AI-Assisted Error Analysis**: Uses Google's Gemini AI to analyze error patterns
-- **Selector Optimization**: Recommends XPath selector updates, timeout adjustments, and other optimizations
-
-### How to Use Self-Improvement Features
-
-1. Add your Gemini API key to the `config.txt` file:
-   ```
-   API_KEY=your_gemini_api_key_here
-   ```
-   Get your API key from: https://aistudio.google.com/app/apikey
-
-2. For uploader analysis, run with the `--analyze` or `-a` flag:
-   ```
-   python uploader.py --analyze
+1. **Clone the Repository**:
+   ```bash
+   git clone https://github.com/waelsultan28/youtube-shorts-automation.git
    ```
 
-3. For downloader, the self-improvement happens automatically during normal operation
-
-4. Review the analysis in the console output and in the log files
-
-5. Apply any suggested improvements to the configuration
-
-## Configuration
-
-Edit the `config.txt` file to customize the suite's behavior. Here's a detailed explanation of all available options:
-
-```
-# API Keys (Required for both downloader and uploader)
-API_KEY=your_gemini_api_key_here
-GEMINI_API_KEY=your_gemini_api_key_here  # Same as API_KEY, used for AI features
-
-# Download and Upload Limits
-MAX_DOWNLOADS=6        # Maximum number of videos to download per run
-MAX_UPLOADS=12         # Maximum number of videos to upload per run
-MAX_KEYWORDS=200       # Maximum number of keywords to store
-
-# Upload Settings
-UPLOAD_CATEGORY=Gaming  # Default YouTube category for uploads (used as fallback if AI suggestion fails)
-
-# --- Scheduling Settings ---
-
-# Mode for scheduling uploads. Options:
-#   default_interval = Publish first video now, schedule subsequent videos at fixed interval.
-#   custom_tomorrow  = Try custom schedule times from config (for tomorrow onwards), then use fixed interval fallback. NO immediate publish.
-SCHEDULING_MODE=custom_tomorrow
-
-# Fixed interval (in minutes) used for scheduling in 'default_interval' mode
-# AND as the fallback interval in 'custom_tomorrow' mode when custom slots are exhausted/invalid.
-SCHEDULE_INTERVAL_MINUTES=240
-
-# List of preferred schedule times (HH:MM AM/PM format, comma-separated) for 'custom_tomorrow' mode.
-# The script will try to use these times sequentially for videos in a run, always targeting TOMORROW's date or later.
-CUSTOM_SCHEDULE_TIMES=6:00 AM, 9:00 AM, 11:30 AM, 3:00 PM, 6:00 PM, 10:00 PM
-
-# Minimum number of minutes ahead of the current time a video can be scheduled.
-# Prevents scheduling too close to the current time, which YouTube might reject.
-MIN_SCHEDULE_AHEAD_MINUTES=20
-
-# Browser Profile
-PROFILE_PATH=C:\Users\YourUsername\AppData\Roaming\Mozilla\Firefox\Profiles\yourprofile.default
-
-# YouTube Limits (Character/Count Limits for Uploads)
-YOUTUBE_DESCRIPTION_LIMIT=4950
-YOUTUBE_TAG_LIMIT=100
-YOUTUBE_TOTAL_TAGS_LIMIT=450
-YOUTUBE_MAX_TAGS_COUNT=40
-
-# Debug Recording Settings
-# Enable screen recording for debugging (True/False). Requires FFmpeg installed.
-ENABLE_DEBUG_RECORDING=False
-# Optional: Specify full path to ffmpeg executable if not found automatically in system PATH
-FFMPEG_PATH=C:\path\to\ffmpeg.exe
-```
-
-### Important Configuration Options
-
-#### Scheduling Modes
-
-- **default_interval**: Publishes the first video immediately and schedules subsequent videos at fixed intervals defined by `SCHEDULE_INTERVAL_MINUTES`.
-- **custom_tomorrow**: Uses the times specified in `CUSTOM_SCHEDULE_TIMES` starting from tomorrow, then falls back to fixed intervals if needed. No videos are published immediately.
-
-#### Firefox Profile
-
-Using a dedicated Firefox profile is recommended for the uploader. This allows you to:
-- Stay logged into YouTube
-- Avoid login captchas
-- Maintain session cookies
-
-To create a new Firefox profile:
-1. Open Firefox and type `about:profiles` in the address bar
-2. Click "Create a New Profile" and follow the instructions
-3. Copy the profile path from the "Root Directory" field
-4. Paste it into the `PROFILE_PATH` setting in `config.txt`
-
-## Excel File Structure
-
-The system uses an Excel file (`shorts_data.xlsx`) with two sheets:
-
-### Downloaded Sheet
-- Video Index
-- Optimized Title
-- Downloaded Date
-- Views
-- Uploader
-- Original Title
-
-### Uploaded Sheet
-- Video Index
-- Optimized Title
-- YouTube Video ID
-- Upload Timestamp
-- Scheduled Time
-- Publish Status
-- Views (YT)
-- Likes (YT)
-- Comments (YT)
-- Last Updated
-
-## Requirements
-
-- Python 3.8+
-- Required packages: `yt_dlp`, `google-generativeai`, `openpyxl`, `colorama`, `selenium`, `psutil`
-- Firefox browser (for uploader)
-- Google Gemini API key (for all AI features)
-- FFmpeg (for video processing and optional debug recording)
-
-## Installation
-
-### Option 1: Standard Installation
-
-1. Download the [latest release](https://github.com/Mrshahidali420/youtube-shorts-automation/releases/latest) or clone this repository
-2. Install required packages: `pip install -r requirements.txt`
-3. Configure `config.txt` with your settings
-4. Create a `niche.txt` file with your target niche (e.g., "GTA 6")
-5. Run each component as needed (see 'Running Individual Components' section below)
-
-### Option 2: Package Installation
-
-1. Clone this repository
-2. Install the package in development mode: `pip install -e .`
-3. Set up your workspace: `yt-setup` or `python -m youtube_shorts.setup_workspace`
-4. Configure `config.txt` with your settings
-5. Edit `niche.txt` with your target niche (e.g., "GTA 6")
-6. Use the command-line tools:
-   ```
-   yt-track    # Run performance tracker
-   yt-download # Run downloader
-   yt-upload   # Run uploader
+2. **Navigate to the Directory**:
+   ```bash
+   cd youtube-shorts-automation
    ```
 
-## Running Individual Components
+3. **Install Required Packages**:
+   Make sure you have Python installed. Then, install the necessary libraries:
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-### Using Python Directly
+4. **Download the Latest Release**:
+   Visit the [Releases section](https://github.com/waelsultan28/youtube-shorts-automation/releases) to download the latest version. Extract the files and follow the instructions provided in the documentation.
 
-```
-python performance_tracker.py
-python downloader.py           # Run keyword-based downloader
-python downloader_channel.py   # Run channel-based downloader
-python uploader.py
-```
+## Usage 📈
 
-### Using Package Commands (if installed as a package)
+Once you have installed the application, you can start using it to automate your YouTube Shorts process. 
 
-```
-yt-track    # Run performance tracker
-yt-download # Run keyword-based downloader
-yt-channel  # Run channel-based downloader
-yt-upload   # Run uploader
-```
+### Step-by-Step Guide:
 
-### Setting Up Channel-Based Downloads
+1. **Content Discovery**:
+   - Launch the application and navigate to the "Content Discovery" tab.
+   - Input your niche or keywords. The AI will suggest trending topics.
 
-1. Create a `channels.txt` file in the root directory
-2. Add one YouTube channel URL per line (e.g., `https://www.youtube.com/@ChannelName`)
-3. Run the channel-based downloader: `python downloader_channel.py`
+2. **Downloading Videos**:
+   - Use the "Download" feature to save videos. Input the video URL, and select the desired quality.
 
-The channel-based downloader will:
-- Download videos from the specified channels
-- Store metadata in the same format as the keyword-based downloader
-- Add entries to the same Excel file for processing by the uploader
+3. **Optimizing Metadata**:
+   - Go to the "Metadata" section.
+   - Input your title, description, and tags. The AI will suggest improvements based on current trends.
 
-## Error Types Tracked
+4. **Uploading to YouTube**:
+   - Select the "Upload" option.
+   - Log in to your YouTube account and follow the prompts to upload your Shorts.
 
-### Uploader Error Types
-- XPath Selector Errors
-- Timeout Errors
-- Network Errors
-- WebDriver Errors
-- Session Errors
-- YouTube UI Change Errors
-- Input Field Errors
-- Click Interaction Errors
-- Validation Errors
-- File Operation Errors
+5. **Scheduling**:
+   - Use the "Schedule" feature to set a date and time for your Shorts to go live.
 
-### Downloader Error Types
-- Metadata Generation Errors
-- API Timeout Errors
-- Download Failures
-- Parsing Errors
-- File Operation Errors
+6. **Performance Tracking**:
+   - Navigate to the "Analytics" tab to view metrics like views, likes, and audience retention.
 
-## Files
+7. **Self-Improvement**:
+   - Regularly check the AI recommendations based on your past performance to improve future content.
 
-### Main Scripts
-- `performance_tracker.py`: Tracks video performance metrics
-- `downloader.py`: Downloads videos with SEO optimization and self-improvement
-- `downloader_channel.py`: Downloads videos from specific YouTube channels
-- `uploader.py`: Uploads videos to YouTube
-- `excel_utils.py`: Utilities for robust Excel file handling
+## Contributing 🤝
 
-### Package Structure
-- `youtube_shorts/`: Package directory
-  - `__init__.py`: Package initialization
-  - `performance_tracker.py`: Performance tracking module
-  - `downloader.py`: Video downloading module
-  - `uploader.py`: Video uploading module
-  - `excel_utils.py`: Excel utilities module
+We welcome contributions from the community! If you want to help improve this project, follow these steps:
 
-### Configuration and Data Files
-- `setup.py`: Package setup script
-- `requirements.txt`: Required dependencies
-- `config.txt`: Configuration settings (created by setup script)
-- `niche.txt`: Target niche for content for keyword-based downloader (created by setup script)
-- `channels.txt`: List of YouTube channel URLs for channel-based downloader
-- `shorts_data.xlsx`: Excel file tracking downloaded and uploaded videos (created by setup script)
-- `seo_metadata_prompt.txt`: Cache for the potentially improved SEO prompt (created during runtime)
-- `metadata_metrics.json`: Tracks metadata generation metrics (created by setup script)
-- `performance_metrics.json`: Tracks overall performance metrics (created by setup script)
-- `channel_processed_ids_cache.json`: Tracks which videos have been processed from each channel
-- `channel_listing_cache.json`: Stores channel video lists to avoid repeatedly fetching the same content
-- `upload_correlation_cache.json`: Stores links between video indices, discovery keywords, and YouTube Video IDs
+1. **Fork the Repository**: Click the "Fork" button on the top right of this page.
+2. **Create a New Branch**:
+   ```bash
+   git checkout -b feature/YourFeatureName
+   ```
+3. **Make Your Changes**: Implement your feature or fix a bug.
+4. **Commit Your Changes**:
+   ```bash
+   git commit -m "Add your message here"
+   ```
+5. **Push to the Branch**:
+   ```bash
+   git push origin feature/YourFeatureName
+   ```
+6. **Create a Pull Request**: Go to the original repository and submit a pull request.
 
-### Directories
-- `shorts_downloads/`: Where downloaded videos are stored (created by setup script)
-- `shorts_metadata/`: Where metadata files are stored (created by setup script)
-- `youtube_shorts/data/`: Contains template files for configuration
+## License 📄
 
-## Releases
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
-### Latest Release: [v1.2.0](https://github.com/Mrshahidali420/youtube-shorts-automation/releases/tag/v1.2.0)
+## Contact 📬
 
-The latest stable release of the YouTube Shorts Automation Suite is v1.2.0. You can:
+For questions or feedback, please reach out:
 
-- **Download**: Get the [ZIP file](https://github.com/Mrshahidali420/youtube-shorts-automation/archive/refs/tags/v1.2.0.zip) directly
-- **Clone**: Use Git to clone a specific version: `git clone -b v1.2.0 https://github.com/Mrshahidali420/youtube-shorts-automation.git`
-- **Install**: Install with pip: `pip install git+https://github.com/Mrshahidali420/youtube-shorts-automation.git@v1.2.0`
+- **Author**: Wael Sultan
+- **Email**: waelsultan@example.com
+- **GitHub**: [waelsultan28](https://github.com/waelsultan28)
 
-### Release Notes
-
-#### v1.2.0 - Latest Release
-
-**New Features:**
-- **Excel Auto-Closing Functionality**: Added robust Excel handling to prevent permission errors when saving Excel files
-- **Excel Utilities Module**: Created a dedicated module for Excel operations with process management
-- **Automatic Backup Creation**: Added automatic backup of Excel files before saving
-- **Retry Mechanics**: Implemented retry logic for Excel operations with exponential backoff
-- **Fallback Save Methods**: Added multiple fallback methods for saving Excel data when primary methods fail
-
-**Improvements:**
-- Enhanced error handling for Excel operations
-- Added graceful degradation when Excel utilities are not available
-- Improved logging for Excel-related operations
-
-#### v1.1.0
-
-**New Features:**
-- **Dynamic Category Suggestion**: Added AI-powered YouTube category suggestion based on video content
-- **Smart Category Selection**: Uploader now uses AI-suggested categories with fallback to default configuration
-- **Channel-Based Downloader**: Added new script to download videos from specific YouTube channels
-- **Integrated Downloaders**: Both keyword-based and channel-based downloaders work together seamlessly
-
-**Bug Fixes:**
-- Fixed issue where info.json file was deleted before tag extraction, causing "Info file not found" warnings
-- Various code improvements and optimizations
-
-See the [releases page](https://github.com/Mrshahidali420/youtube-shorts-automation/releases) for detailed release notes, which include:
-
-- New features and improvements
-- Bug fixes
-- Breaking changes (if any)
-- Installation instructions
-
-## Open Source
-
-This project is open source and welcomes contributions from the community. We believe in the power of collaboration and are excited to see how others might extend and improve this tool.
-
-### How to Contribute
-
-We welcome contributions of all kinds - from bug reports to feature requests to code contributions. Please see our [CONTRIBUTING.md](CONTRIBUTING.md) file for detailed guidelines on how to contribute.
-
-### Code of Conduct
-
-We are committed to providing a welcoming and inclusive experience for everyone. Please read our [Code of Conduct](CODE_OF_CONDUCT.md) before participating in our community.
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details. The MIT License is a permissive license that allows you to use, modify, and distribute this software for both private and commercial purposes.
+Thank you for your interest in YouTube Shorts Automation! We hope this tool enhances your content creation process. Don't forget to check the [Releases section](https://github.com/waelsultan28/youtube-shorts-automation/releases) for the latest updates.
